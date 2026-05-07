@@ -68,6 +68,27 @@ def test_find_org_propagates_other_errors(http_stub):
     assert "Authentication error" in exc.value.message
 
 
+def test_find_org_does_not_swallow_unrelated_error_with_9999_substring(http_stub):
+    # The check is anchored on "CloudFlare API 9999:" so an unrelated
+    # error whose message merely contains "9999" or "not_enabled" as
+    # substrings (e.g. an id or a different field) must still propagate.
+    http_stub.set(
+        "GET", "/accounts/acc-1/access/organizations",
+        CfafiError(
+            code=EXIT_API,
+            message=(
+                "CloudFlare API 12345: tunnel id 9999-aaaa not_enabled flag "
+                "in unrelated context"
+            ),
+            remediation="HTTP 500 from CloudFlare; inspect the request body and retry",
+        ),
+    )
+    with pytest.raises(CfafiError) as exc:
+        find_org(account_id="acc-1")
+    assert exc.value.code == EXIT_API
+    assert "12345" in exc.value.message
+
+
 def test_ensure_org_returns_existing_without_posting(http_stub):
     http_stub.set("GET", "/accounts/acc-1/access/organizations", {
         "success": True, "errors": [], "messages": [],

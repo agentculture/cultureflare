@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `find_org` now swallows CF error 9999 (`access.api.error.not_enabled`) into `None` so setup/show emit cfafi's friendly Zero-Trust-disabled error with a dashboard link instead of bubbling CF's raw 4xx.
+- `find_org` now swallows CF error 9999 (`access.api.error.not_enabled`) into `None` so `setup` raises a curated "Zero Trust is not enabled" message with a dashboard link, and `show` renders the org as `(not found)`, instead of bubbling CF's raw 4xx.
 
 ## [0.2.0] - 2026-05-07
 
