@@ -40,7 +40,10 @@ import cultureflare.cli._commands.zones  # noqa: F401
 import cultureflare.cli._errors  # noqa: F401
 import cultureflare.cli._output  # noqa: F401
 
-for _name, _mod in list(_sys.modules.items()):
+# Snapshot via list() because we mutate _sys.modules inside the loop:
+# inserting "cfafi.<name>" keys while iterating the live dict would
+# raise RuntimeError: dictionary changed size during iteration.
+for _name, _mod in list(_sys.modules.items()):  # NOSONAR — list() is required (snapshot)
     if _name == "cultureflare" or _name.startswith("cultureflare."):
         _sys.modules["cfafi" + _name[len("cultureflare"):]] = _mod
 

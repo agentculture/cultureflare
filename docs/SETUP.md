@@ -265,36 +265,35 @@ through the environment variable.
 
 Publishing to PyPI uses OIDC — no API tokens stored anywhere. From
 v0.3.0 onward, the repo publishes a single distribution under the
-`cultureflare` name. (`cultureflare` was the original distribution name and
-is frozen at v0.2.2 — the legacy pending publishers + GitHub
-environments below are kept intact for that historical release but
-unused by the current workflow.)
+`cultureflare` name. (`cfafi` was the original distribution name and
+is frozen at v0.2.2 — the legacy `cfafi` PyPI project still exists
+with its history through 0.2.2, but no future versions will ship
+there.)
 
 ### `cultureflare` (canonical, in use)
 
 1. PyPI → `cultureflare` project → Publishing → pending publisher:
    - Publisher: GitHub
    - Owner: `agentculture`
-   - Repo: `cultureflare` *(repo rename is deferred; the publisher follows
-     the source repo, not the package name)*
+   - Repo: `cultureflare`
    - Workflow: `publish.yml`
    - Environment: `pypi`
 2. Repeat on TestPyPI with environment `testpypi`.
 3. GitHub: Settings → Environments → `pypi` and `testpypi` already
-   exist from the legacy cultureflare setup; no new environments needed.
+   exist from the legacy `cfafi` setup; no new environments needed.
 
 The publish workflow at `.github/workflows/publish.yml` builds with
 `name = "cultureflare"` directly from `pyproject.toml` (no
 in-place rewrite) and uploads via `uv publish --trusted-publishing
-always` through the same `pypi` / `testpypi` environments cultureflare
+always` through the same `pypi` / `testpypi` environments `cfafi`
 used.
 
-### `cultureflare` (legacy, frozen at v0.2.2)
+### `cfafi` (legacy, frozen at v0.2.2)
 
-The `cultureflare` PyPI project still exists with its history through
+The `cfafi` PyPI project still exists with its history through
 v0.2.2 — that's the bridge release that dual-published under both
 names. It's no longer in the publish workflow; nothing newer than
-0.2.2 will ever ship there. The cultureflare pending publisher on PyPI is
+0.2.2 will ever ship there. The `cfafi` pending publisher on PyPI is
 now superseded by the cultureflare publisher pointing at the same
 `pypi` / `testpypi` GitHub environments.
 

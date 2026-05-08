@@ -52,3 +52,23 @@ def test_cfafi_error_class_identity_preserved():
     from cultureflare.cli._errors import CfafiError
 
     assert CfafiAlias is CfafiError
+
+
+def test_python_m_cfafi_runs_cli():
+    # `python -m cfafi --version` requires `cfafi/__main__.py` to exist;
+    # qodo flagged that PR #27 deleted it. The shim must be present
+    # alongside the package's __init__.py so the legacy `python -m`
+    # invocation pattern keeps working.
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "cfafi", "--version"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, f"stderr: {result.stderr}"
+    # _resolve_prog falls back to canonical "cultureflare" when argv[0]
+    # is `__main__.py` (the python -m … invocation).
+    assert "cultureflare" in result.stdout
