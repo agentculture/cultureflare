@@ -313,11 +313,19 @@ def show(*, ctx: Context, seal: SealPlan | None = None) -> ShowResult:
         account_id=ctx.account_id, name=ctx.names.tunnel_name,
     )
     dns = find_cname(zone_id=ctx.zone_id, hostname=ctx.hostname)
+
+    # Probe shushu unconditionally (independent of CF/ZT state) so that
+    # ``--shushu`` shows sealed secret presence even when ZT is not enabled.
+    sealed_status: dict[str, dict | None] = (
+        _probe_sealed_targets(seal) if seal.enabled else {}
+    )
+
     if org is None:
         return ShowResult(
             team_domain=None,
             tunnel=tunnel, dns=dns,
             access_app=None, policy=None, service_token=None,
+            sealed_in_status=sealed_status,
         )
     app = find_app(account_id=ctx.account_id, hostname=ctx.hostname)
     policy = (
@@ -331,10 +339,6 @@ def show(*, ctx: Context, seal: SealPlan | None = None) -> ShowResult:
     )
     svc = find_service_token(
         account_id=ctx.account_id, name=ctx.names.service_token_name,
-    )
-
-    sealed_status: dict[str, dict | None] = (
-        _probe_sealed_targets(seal) if seal.enabled else {}
     )
 
     return ShowResult(

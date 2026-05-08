@@ -32,8 +32,13 @@ _SHUSHU_NOT_FOUND_MSG = "shushu binary not found"
 
 
 def _sudo_prefix(target: ShushuTarget) -> list[str]:
-    """argv prefix that lifts the call to sudo when target.user is set."""
-    return ["sudo"] if target.user is not None else []
+    """argv prefix that lifts the call to sudo when target.user is set.
+
+    Uses ``sudo -n`` (non-interactive) so missing cached creds fail
+    fast rather than blocking on a tty prompt — important when
+    cultureflare runs under an agent harness without a tty.
+    """
+    return ["sudo", "-n"] if target.user is not None else []
 
 
 def _user_flag(target: ShushuTarget) -> list[str]:
@@ -69,6 +74,32 @@ def _argv_for_delete(target: ShushuTarget) -> list[str]:
         *_user_flag(target),
         target.name,
     ]
+
+
+def _check_sudo_no_creds(returncode: int, stderr: bytes, target: ShushuTarget) -> None:
+    """Raise a curated CfafiError when sudo fails because creds aren't cached.
+
+    Called after any subprocess.run that uses ``sudo -n``.  When the
+    return code is non-zero and stderr indicates that sudo needed a
+    password (but couldn't prompt because of ``-n``), we surface a
+    clear remediation rather than falling through to the generic
+    _map_exit_code path.
+    """
+    if returncode != 0 and target.user is not None:
+        stderr_text = stderr.decode(errors="replace")
+        if "password is required" in stderr_text or \
+           "terminal is required" in stderr_text:
+            raise CfafiError(
+                code=EXIT_USER_ERROR,
+                message=(
+                    f"sudo non-interactive ran but creds not cached: "
+                    f"{stderr_text.strip()}"
+                ),
+                remediation=(
+                    "run `sudo -v` once to cache credentials, then re-run; "
+                    "or configure NOPASSWD for shushu in /etc/sudoers"
+                ),
+            )
 
 
 def _map_exit_code(rc: int, stderr: bytes, target: ShushuTarget) -> CfafiError:
@@ -128,6 +159,7 @@ def seal(
         ) from exc
 
     if result.returncode != 0:
+        _check_sudo_no_creds(result.returncode, result.stderr, target)
         raise _map_exit_code(result.returncode, result.stderr, target)
 
 
@@ -151,6 +183,7 @@ def probe(target: ShushuTarget) -> dict | None:
     if result.returncode == 64:
         return None
     if result.returncode != 0:
+        _check_sudo_no_creds(result.returncode, result.stderr, target)
         raise _map_exit_code(result.returncode, result.stderr, target)
 
     payload = _json.loads(result.stdout.decode("utf-8"))
@@ -182,4 +215,5 @@ def delete(target: ShushuTarget) -> bool:
         return True
     if result.returncode == 64:
         return False
+    _check_sudo_no_creds(result.returncode, result.stderr, target)
     raise _map_exit_code(result.returncode, result.stderr, target)

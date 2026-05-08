@@ -190,6 +190,7 @@ def render_show_json(result: ShowResult, *, hostname: str) -> dict:
             "access_app": result.access_app,
             "policy": result.policy,
             "service_token": result.service_token,
+            "sealed_in_status": dict(result.sealed_in_status),
         },
     }
 

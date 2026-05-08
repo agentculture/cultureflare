@@ -330,3 +330,36 @@ def test_dryrun_markdown_omits_seal_when_shushu_unset():
         seal_svc_name=None,
     )
     assert "seal" not in md.lower()
+
+
+def test_show_json_includes_sealed_in_status():
+    """Bug fix: render_show_json must include sealed_in_status in output."""
+    r = ShowResult(
+        team_domain="ex.cloudflareaccess.com",
+        tunnel=None, dns=None, access_app=None, policy=None, service_token=None,
+        sealed_in_status={
+            "tunnel_token": {
+                "present": True,
+                "name": "shushu/alice/CULTUREFLARE_X_TUNNEL_TOKEN",
+                "source": "cultureflare/remote-login",
+            },
+            "service_token_client_secret": {
+                "present": False,
+                "name": "shushu/alice/CULTUREFLARE_X_SVC_SECRET",
+                "source": None,
+            },
+        },
+    )
+    js = render_show_json(r, hostname="app.example.com")
+    assert js["result"]["sealed_in_status"] == {
+        "tunnel_token": {
+            "present": True,
+            "name": "shushu/alice/CULTUREFLARE_X_TUNNEL_TOKEN",
+            "source": "cultureflare/remote-login",
+        },
+        "service_token_client_secret": {
+            "present": False,
+            "name": "shushu/alice/CULTUREFLARE_X_SVC_SECRET",
+            "source": None,
+        },
+    }

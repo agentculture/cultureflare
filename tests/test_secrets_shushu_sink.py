@@ -66,7 +66,7 @@ def test_seal_cross_user_argv_uses_sudo(monkeypatch):
     )
 
     argv = fake.calls[0]["argv"]
-    assert argv[:2] == ["sudo", "shushu"]
+    assert argv[:3] == ["sudo", "-n", "shushu"]
     assert "--user" in argv
     assert argv[argv.index("--user") + 1] == "alice"
 
@@ -218,7 +218,7 @@ def test_probe_uses_sudo_for_cross_user(monkeypatch):
     probe(ShushuTarget(user="alice", name="X"))
     assert len(captured) == 1, f"expected exactly 1 subprocess call, got {len(captured)}"
     argv = captured[0]
-    assert argv[:2] == ["sudo", "shushu"]
+    assert argv[:3] == ["sudo", "-n", "shushu"]
     assert "--user" in argv
     assert argv[argv.index("--user") + 1] == "alice"
 
@@ -287,7 +287,7 @@ def test_delete_uses_sudo_for_cross_user(monkeypatch):
     delete(ShushuTarget(user="alice", name="X"))
     assert len(captured) == 1, f"expected exactly 1 subprocess call, got {len(captured)}"
     argv = captured[0]
-    assert argv[:2] == ["sudo", "shushu"]
+    assert argv[:3] == ["sudo", "-n", "shushu"]
     assert "--user" in argv
     assert argv[argv.index("--user") + 1] == "alice"
 
@@ -302,3 +302,26 @@ def test_delete_other_error_raises(monkeypatch):
     with pytest.raises(CfafiError) as exc:
         delete(ShushuTarget(user=None, name="X"))
     assert exc.value.code == EXIT_API
+
+
+# ---------------------------------------------------------------------------
+# sudo -n no-creds test
+# ---------------------------------------------------------------------------
+
+
+def test_seal_sudo_no_password_cached_remediation(monkeypatch):
+    """Bug fix: sudo -n failing with 'password is required' maps to a
+    curated CfafiError with a sudo -v / NOPASSWD remediation hint."""
+    fake = _FakeRun(
+        returncode=1,
+        stderr=b"sudo: a password is required\n",
+    )
+    monkeypatch.setattr(subprocess, "run", fake)
+
+    with pytest.raises(CfafiError) as exc:
+        seal(ShushuTarget(user="alice", name="N"), b"x", _META)
+    assert exc.value.code == EXIT_USER_ERROR
+    assert (
+        "sudo -v" in exc.value.remediation
+        or "NOPASSWD" in exc.value.remediation
+    )

@@ -611,3 +611,44 @@ def test_teardown_without_seal_does_not_call_delete(http_stub, monkeypatch):
     plan = derive_seal_plan(hostname="app.example.com", shushu_arg=None)
     ctx = _ctx_for("app.example.com")
     teardown(ctx=ctx, keep_tunnel=False, seal=plan)
+
+
+def test_show_with_seal_probes_even_when_zt_disabled(http_stub, monkeypatch):
+    """Bug fix: shushu probe must run even when find_org returns None."""
+    from cultureflare.cli._errors import EXIT_API, CfafiError
+
+    # Program /access/organizations to return 9999 (Zero Trust not enabled).
+    http_stub.set(
+        "GET", "/accounts/acc-1/access/organizations",
+        CfafiError(
+            code=EXIT_API,
+            message="CloudFlare API 9999: access.api.error.not_enabled: ...",
+            remediation="...",
+            cf_error_code=9999,
+        ),
+    )
+    # Tunnel + DNS endpoints return empty — show is non-fatal.
+    http_stub.set("GET", "/accounts/acc-1/cfd_tunnel", _empty_list())
+    http_stub.set("GET", "/zones/zid-1/dns_records", _empty_list())
+
+    probed: list = []
+
+    def fake_probe(target):
+        probed.append(target)
+        return {"name": target.name, "hidden": True,
+                "source": "cultureflare/remote-login"}
+
+    monkeypatch.setattr(
+        "cultureflare._secrets._shushu_sink.probe", fake_probe
+    )
+
+    plan = derive_seal_plan(hostname="app.example.com", shushu_arg="alice")
+    ctx = _ctx_for("app.example.com")
+    result = show(ctx=ctx, seal=plan)
+
+    # ZT-side state is empty.
+    assert result.team_domain is None
+    # But shushu probe DID run for both targets.
+    assert len(probed) == 2
+    assert result.sealed_in_status["tunnel_token"]["present"] is True
+    assert result.sealed_in_status["service_token_client_secret"]["present"] is True
