@@ -8,7 +8,7 @@ from cultureflare._env import require_env
 from cultureflare._remote_login import setup, show, teardown
 from cultureflare._remote_login._common import Context, derive_names, resolve_zone
 from cultureflare._remote_login._preflight import check_token_alive
-from cultureflare._remote_login._seal_plan import derive_seal_plan
+from cultureflare._remote_login._seal_plan import SealPlan, derive_seal_plan
 from cultureflare._remote_login._render import (
     render_setup_dryrun_markdown, render_setup_json, render_setup_markdown,
     render_show_json, render_show_markdown,
@@ -16,6 +16,15 @@ from cultureflare._remote_login._render import (
 )
 from cultureflare.cli._errors import EXIT_USER_ERROR, CfafiError
 from cultureflare.cli._output import emit_json, emit_result
+
+
+_SHUSHU_HELP = (
+    "seal tunnel_token + service_token client_secret into shushu "
+    "instead of printing them. Bare --shushu = invoking user; "
+    "--shushu=USER deposits into another user's vault via sudo. "
+    "When set, value fields render as <sealed: shushu/USER/NAME> "
+    "markers."
+)
 
 
 def _build_context(hostname: str) -> Context:
@@ -43,64 +52,60 @@ def _ctx_with_overrides(args: argparse.Namespace) -> Context:
     )
 
 
-def cmd_setup(args: argparse.Namespace) -> None:
-    if not args.allow and not args.allow_domain:
-        raise CfafiError(
-            code=EXIT_USER_ERROR,
-            message="at least one of --allow / --allow-domain is required",
-            remediation="pass --allow user@example.com or --allow-domain @example.com",
-        )
+def _emit_setup_dryrun(
+    args: argparse.Namespace, ctx: Context, seal: SealPlan,
+) -> None:
+    """Print dry-run plan for setup (markdown or JSON depending on args.json)."""
     json_mode = bool(args.json)
-    check_token_alive()
-    ctx = _ctx_with_overrides(args)
-
-    seal = derive_seal_plan(hostname=args.hostname, shushu_arg=args.shushu)
-
-    if not args.apply:
-        if json_mode:
-            result_body: dict = {
-                "dry_run": True,
-                "hostname": args.hostname,
-                "tunnel_name": ctx.names.tunnel_name,
-                "app_name": ctx.names.app_name,
-                "with_service_token": args.with_service_token,
-                "session_duration": args.session_duration,
-                "emails": list(args.allow),
-                "domains": list(args.allow_domain),
-            }
-            if seal.enabled:
-                u = seal.user or "<self>"
-                result_body["sealed_in"] = {
-                    "tunnel_token": (
-                        f"shushu/{u}/{seal.tunnel_token_target.name}"
-                    ),
-                    "service_token_client_secret": (
-                        f"shushu/{u}/{seal.service_token_secret_target.name}"
-                        if args.with_service_token else None
-                    ),
-                }
-            emit_json({
-                "success": True, "errors": [], "messages": ["dry-run: no changes applied"],
-                "result": result_body,
-            })
-        else:
-            emit_result(
-                render_setup_dryrun_markdown(
-                    hostname=args.hostname,
-                    tunnel_name=ctx.names.tunnel_name,
-                    app_name=ctx.names.app_name,
-                    emails=list(args.allow),
-                    domains=list(args.allow_domain),
-                    with_service_token=args.with_service_token,
-                    session_duration=args.session_duration,
-                    seal_user=seal.user if seal.enabled else None,
-                    seal_tunnel_name=seal.tunnel_token_target.name if seal.enabled else None,
-                    seal_svc_name=seal.service_token_secret_target.name if seal.enabled else None,
+    if json_mode:
+        result_body: dict = {
+            "dry_run": True,
+            "hostname": args.hostname,
+            "tunnel_name": ctx.names.tunnel_name,
+            "app_name": ctx.names.app_name,
+            "with_service_token": args.with_service_token,
+            "session_duration": args.session_duration,
+            "emails": list(args.allow),
+            "domains": list(args.allow_domain),
+        }
+        if seal.enabled:
+            u = seal.user or "<self>"
+            result_body["sealed_in"] = {
+                "tunnel_token": (
+                    f"shushu/{u}/{seal.tunnel_token_target.name}"
                 ),
-                json_mode=False,
-            )
-        return
+                "service_token_client_secret": (
+                    f"shushu/{u}/{seal.service_token_secret_target.name}"
+                    if args.with_service_token else None
+                ),
+            }
+        emit_json({
+            "success": True, "errors": [], "messages": ["dry-run: no changes applied"],
+            "result": result_body,
+        })
+    else:
+        emit_result(
+            render_setup_dryrun_markdown(
+                hostname=args.hostname,
+                tunnel_name=ctx.names.tunnel_name,
+                app_name=ctx.names.app_name,
+                emails=list(args.allow),
+                domains=list(args.allow_domain),
+                with_service_token=args.with_service_token,
+                session_duration=args.session_duration,
+                seal_user=seal.user if seal.enabled else None,
+                seal_tunnel_name=seal.tunnel_token_target.name if seal.enabled else None,
+                seal_svc_name=seal.service_token_secret_target.name if seal.enabled else None,
+            ),
+            json_mode=False,
+        )
 
+
+def _emit_setup_apply(
+    args: argparse.Namespace, ctx: Context, seal: SealPlan,
+) -> None:
+    """Run setup() and emit the result."""
+    json_mode = bool(args.json)
     result = setup(
         ctx=ctx,
         emails=list(args.allow),
@@ -116,6 +121,22 @@ def cmd_setup(args: argparse.Namespace) -> None:
             render_setup_markdown(result, hostname=args.hostname),
             json_mode=False,
         )
+
+
+def cmd_setup(args: argparse.Namespace) -> None:
+    if not args.allow and not args.allow_domain:
+        raise CfafiError(
+            code=EXIT_USER_ERROR,
+            message="at least one of --allow / --allow-domain is required",
+            remediation="pass --allow user@example.com or --allow-domain @example.com",
+        )
+    check_token_alive()
+    ctx = _ctx_with_overrides(args)
+    seal = derive_seal_plan(hostname=args.hostname, shushu_arg=args.shushu)
+    if not args.apply:
+        _emit_setup_dryrun(args, ctx, seal)
+    else:
+        _emit_setup_apply(args, ctx, seal)
 
 
 def cmd_show(args: argparse.Namespace) -> None:
@@ -203,13 +224,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     s.add_argument(
         "--shushu",
         nargs="?", const="", default=None, metavar="USER",
-        help=(
-            "seal tunnel_token + service_token client_secret into shushu "
-            "instead of printing them. Bare --shushu = invoking user; "
-            "--shushu=USER deposits into another user's vault via sudo. "
-            "When set, value fields render as <sealed: shushu/USER/NAME> "
-            "markers."
-        ),
+        help=_SHUSHU_HELP,
     )
     s.set_defaults(func=cmd_setup)
 
@@ -222,13 +237,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     sh.add_argument(
         "--shushu",
         nargs="?", const="", default=None, metavar="USER",
-        help=(
-            "seal tunnel_token + service_token client_secret into shushu "
-            "instead of printing them. Bare --shushu = invoking user; "
-            "--shushu=USER deposits into another user's vault via sudo. "
-            "When set, value fields render as <sealed: shushu/USER/NAME> "
-            "markers."
-        ),
+        help=_SHUSHU_HELP,
     )
     sh.set_defaults(func=cmd_show)
 
@@ -245,12 +254,6 @@ def register(sub: argparse._SubParsersAction) -> None:
     t.add_argument(
         "--shushu",
         nargs="?", const="", default=None, metavar="USER",
-        help=(
-            "seal tunnel_token + service_token client_secret into shushu "
-            "instead of printing them. Bare --shushu = invoking user; "
-            "--shushu=USER deposits into another user's vault via sudo. "
-            "When set, value fields render as <sealed: shushu/USER/NAME> "
-            "markers."
-        ),
+        help=_SHUSHU_HELP,
     )
     t.set_defaults(func=cmd_teardown)

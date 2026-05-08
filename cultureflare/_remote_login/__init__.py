@@ -35,6 +35,118 @@ from cultureflare.cli._errors import EXIT_USER_ERROR, CfafiError
 __all__ = ["setup", "show", "teardown"]
 
 
+def _seal_setup_secrets(
+    *,
+    seal: SealPlan,
+    ctx: Context,
+    tunnel_token: str,
+    with_service_token: bool,
+    svc_secret: str | None,
+) -> tuple[str | None, str | None, dict[str, str]]:
+    """Run shushu seals for both secrets when seal.enabled.
+
+    Returns (tunnel_token_out, svc_secret_out, sealed_in) where the
+    output secrets are None if sealed; sealed_in maps each key to its
+    shushu marker. On partial-seal failure raises CfafiError with a
+    rotate remediation.
+    """
+    sealed_in: dict[str, str] = {}
+    marker_user = seal.user or _whoami()
+
+    _shushu_sink.seal(
+        seal.tunnel_token_target,
+        tunnel_token.encode("utf-8"),
+        seal.metadata,
+    )
+    sealed_in["tunnel_token"] = (
+        f"shushu/{marker_user}/{seal.tunnel_token_target.name}"
+    )
+    tunnel_token_out: str | None = None
+
+    svc_secret_out: str | None = svc_secret
+    if with_service_token and svc_secret is not None:
+        try:
+            _shushu_sink.seal(
+                seal.service_token_secret_target,
+                svc_secret.encode("utf-8"),
+                seal.metadata,
+            )
+        except CfafiError as exc:
+            raise CfafiError(
+                code=exc.code,
+                message=(
+                    "partial seal — tunnel-token stored, "
+                    f"service-token secret failed: {exc.message}"
+                ),
+                remediation=(
+                    f"cultureflare remote-login teardown "
+                    f"--hostname {ctx.hostname} "
+                    f"--shushu{'=' + seal.user if seal.user else ''} "
+                    "--apply, then re-run setup; the service-token "
+                    "secret was one-shot and must be rotated."
+                ),
+            ) from exc
+        sealed_in["service_token_client_secret"] = (
+            f"shushu/{marker_user}/{seal.service_token_secret_target.name}"
+        )
+        svc_secret_out = None
+
+    return tunnel_token_out, svc_secret_out, sealed_in
+
+
+def _probe_sealed_targets(seal: SealPlan) -> dict[str, dict | None]:
+    """Probe both seal targets in shushu and return a status map."""
+    sealed_status: dict[str, dict | None] = {}
+    marker_user = seal.user or _whoami()
+    for key, target in (
+        ("tunnel_token", seal.tunnel_token_target),
+        ("service_token_client_secret", seal.service_token_secret_target),
+    ):
+        try:
+            meta = _shushu_sink.probe(target)
+        except CfafiError as exc:
+            if "not found" in exc.message.lower():
+                sealed_status[key] = None
+                continue
+            raise
+        if meta is None:
+            sealed_status[key] = {
+                "present": False,
+                "name": f"shushu/{marker_user}/{target.name}",
+                "source": None,
+            }
+        else:
+            sealed_status[key] = {
+                "present": True,
+                "name": f"shushu/{marker_user}/{target.name}",
+                "source": meta.get("source"),
+            }
+    return sealed_status
+
+
+def _delete_sealed_targets(seal: SealPlan) -> list[StepRecord]:
+    """Delete both seal targets in shushu; return per-target step records."""
+    steps: list[StepRecord] = []
+    for step_name, target in (
+        ("shushu-tunnel-token", seal.tunnel_token_target),
+        ("shushu-svc-secret", seal.service_token_secret_target),
+    ):
+        try:
+            ok = _shushu_sink.delete(target)
+            steps.append(StepRecord(
+                name=step_name,
+                action="deleted" if ok else "skipped",
+                detail=target.name,
+            ))
+        except CfafiError as exc:
+            steps.append(StepRecord(
+                name=step_name,
+                action="delete-failed",
+                detail=f"{target.name}: {exc.message}",
+            ))
+    return steps
+
+
 def _whoami() -> str:
     """OS username for sealed_in path rendering when --shushu (self).
 
@@ -149,47 +261,16 @@ def setup(
 
     sealed_in: dict[str, str] = {}
     if seal.enabled:
-        # 1. Seal tunnel token.
-        _shushu_sink.seal(
-            seal.tunnel_token_target,
-            tunnel_token.encode("utf-8"),
-            seal.metadata,
+        # Seal tunnel token + optional service-token secret.
+        # _seal_setup_secrets returns None for the sealed values to prevent
+        # them from appearing in the result; sealed_in records the shushu path.
+        tunnel_token, svc_secret, sealed_in = _seal_setup_secrets(  # type: ignore[assignment]
+            seal=seal,
+            ctx=ctx,
+            tunnel_token=tunnel_token,
+            with_service_token=with_service_token,
+            svc_secret=svc_secret,
         )
-        marker_user = seal.user or _whoami()
-        sealed_in["tunnel_token"] = (
-            f"shushu/{marker_user}/{seal.tunnel_token_target.name}"
-        )
-        tunnel_token = None  # type: ignore[assignment]
-
-        # 2. Seal service-token secret. If this fails after the tunnel
-        # seal succeeded, the service-token secret is one-shot from CF
-        # and is now lost — surface a curated rotate remediation.
-        if with_service_token and svc_secret is not None:
-            try:
-                _shushu_sink.seal(
-                    seal.service_token_secret_target,
-                    svc_secret.encode("utf-8"),
-                    seal.metadata,
-                )
-            except CfafiError as exc:
-                raise CfafiError(
-                    code=exc.code,
-                    message=(
-                        "partial seal — tunnel-token stored, "
-                        f"service-token secret failed: {exc.message}"
-                    ),
-                    remediation=(
-                        f"cultureflare remote-login teardown "
-                        f"--hostname {ctx.hostname} "
-                        f"--shushu{'=' + seal.user if seal.user else ''} "
-                        "--apply, then re-run setup; the service-token "
-                        "secret was one-shot and must be rotated."
-                    ),
-                ) from exc
-            sealed_in["service_token_client_secret"] = (
-                f"shushu/{marker_user}/{seal.service_token_secret_target.name}"
-            )
-            svc_secret = None  # type: ignore[assignment]
 
     return SetupResult(
         team_domain=team_domain,
@@ -252,32 +333,9 @@ def show(*, ctx: Context, seal: SealPlan | None = None) -> ShowResult:
         account_id=ctx.account_id, name=ctx.names.service_token_name,
     )
 
-    sealed_status: dict[str, dict | None] = {}
-    if seal.enabled:
-        for key, target in (
-            ("tunnel_token", seal.tunnel_token_target),
-            ("service_token_client_secret", seal.service_token_secret_target),
-        ):
-            try:
-                meta = _shushu_sink.probe(target)
-            except CfafiError as exc:
-                if "not found" in exc.message.lower():
-                    sealed_status[key] = None
-                    continue
-                raise
-            marker_user = seal.user or _whoami()
-            if meta is None:
-                sealed_status[key] = {
-                    "present": False,
-                    "name": f"shushu/{marker_user}/{target.name}",
-                    "source": None,
-                }
-            else:
-                sealed_status[key] = {
-                    "present": True,
-                    "name": f"shushu/{marker_user}/{target.name}",
-                    "source": meta.get("source"),
-                }
+    sealed_status: dict[str, dict | None] = (
+        _probe_sealed_targets(seal) if seal.enabled else {}
+    )
 
     return ShowResult(
         team_domain=org.get("auth_domain"),
@@ -359,22 +417,6 @@ def teardown(
 
     # 6. Shushu sealed entries (best-effort; failures recorded, not raised).
     if seal.enabled:
-        for step_name, target in (
-            ("shushu-tunnel-token", seal.tunnel_token_target),
-            ("shushu-svc-secret", seal.service_token_secret_target),
-        ):
-            try:
-                ok = _shushu_sink.delete(target)
-                steps.append(StepRecord(
-                    name=step_name,
-                    action="deleted" if ok else "skipped",
-                    detail=target.name,
-                ))
-            except CfafiError as exc:
-                steps.append(StepRecord(
-                    name=step_name,
-                    action="delete-failed",
-                    detail=f"{target.name}: {exc.message}",
-                ))
+        steps.extend(_delete_sealed_targets(seal))
 
     return TeardownResult(steps=steps)

@@ -28,6 +28,9 @@ from cultureflare.cli._errors import (
 )
 
 
+_SHUSHU_NOT_FOUND_MSG = "shushu binary not found"
+
+
 def _sudo_prefix(target: ShushuTarget) -> list[str]:
     """argv prefix that lifts the call to sudo when target.user is set."""
     return ["sudo"] if target.user is not None else []
@@ -117,7 +120,7 @@ def seal(
     except FileNotFoundError as exc:
         raise CfafiError(
             code=EXIT_USER_ERROR,
-            message="shushu binary not found",
+            message=_SHUSHU_NOT_FOUND_MSG,
             remediation=(
                 "`uv tool install shushu`, or omit --shushu to print "
                 "secrets to stdout (insecure)"
@@ -141,7 +144,7 @@ def probe(target: ShushuTarget) -> dict | None:
     except FileNotFoundError as exc:
         raise CfafiError(
             code=EXIT_USER_ERROR,
-            message="shushu binary not found",
+            message=_SHUSHU_NOT_FOUND_MSG,
             remediation="`uv tool install shushu`",
         ) from exc
 
@@ -171,7 +174,7 @@ def delete(target: ShushuTarget) -> bool:
     except FileNotFoundError as exc:
         raise CfafiError(
             code=EXIT_USER_ERROR,
-            message="shushu binary not found",
+            message=_SHUSHU_NOT_FOUND_MSG,
             remediation="`uv tool install shushu`",
         ) from exc
 

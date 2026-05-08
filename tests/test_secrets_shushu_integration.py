@@ -38,8 +38,8 @@ def unique_name():
 
 
 def test_round_trip_seal_and_run_inject(unique_name):
-    secret = b"the-quick-brown-fox-9382"
-    seal(ShushuTarget(user=None, name=unique_name), secret, _META)
+    payload = b"the-quick-brown-fox-9382"
+    seal(ShushuTarget(user=None, name=unique_name), payload, _META)
 
     # probe returns metadata without value
     meta = probe(ShushuTarget(user=None, name=unique_name))
@@ -53,7 +53,7 @@ def test_round_trip_seal_and_run_inject(unique_name):
          "--", "bash", "-c", "printf %s \"$S\""],
         capture_output=True, check=True,
     )
-    assert out.stdout == secret
+    assert out.stdout == payload
 
 
 def test_delete_removes_entry(unique_name):

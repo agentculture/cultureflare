@@ -216,9 +216,11 @@ def test_probe_uses_sudo_for_cross_user(monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", _Run())
     probe(ShushuTarget(user="alice", name="X"))
-    assert captured[0][:2] == ["sudo", "shushu"]
-    assert "--user" in captured[0]
-    assert captured[0][captured[0].index("--user") + 1] == "alice"
+    assert len(captured) == 1, f"expected exactly 1 subprocess call, got {len(captured)}"
+    argv = captured[0]
+    assert argv[:2] == ["sudo", "shushu"]
+    assert "--user" in argv
+    assert argv[argv.index("--user") + 1] == "alice"
 
 
 def test_probe_other_error_raises(monkeypatch):
@@ -283,9 +285,11 @@ def test_delete_uses_sudo_for_cross_user(monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", _Run())
     delete(ShushuTarget(user="alice", name="X"))
-    assert captured[0][:2] == ["sudo", "shushu"]
-    assert "--user" in captured[0]
-    assert captured[0][captured[0].index("--user") + 1] == "alice"
+    assert len(captured) == 1, f"expected exactly 1 subprocess call, got {len(captured)}"
+    argv = captured[0]
+    assert argv[:2] == ["sudo", "shushu"]
+    assert "--user" in argv
+    assert argv[argv.index("--user") + 1] == "alice"
 
 
 def test_delete_other_error_raises(monkeypatch):

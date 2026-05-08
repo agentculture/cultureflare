@@ -7,6 +7,12 @@ from cultureflare._remote_login._common import (
 )
 
 
+def _seal_or_value(result: SetupResult, key: str, fallback: str | None) -> str:
+    if key in result.sealed_in:
+        return f"<sealed: {result.sealed_in[key]}>"
+    return str(fallback) if fallback is not None else "(none)"
+
+
 def render_setup_markdown(result: SetupResult, *, hostname: str) -> str:
     lines: list[str] = []
     lines.append(f"## Remote login set up — {hostname}")
@@ -14,12 +20,9 @@ def render_setup_markdown(result: SetupResult, *, hostname: str) -> str:
     lines.append(f"- **CF_TEAM_DOMAIN:** {result.team_domain or '(not set)'}")
     lines.append(f"- **TUNNEL_NAME:** {result.tunnel_name}")
     lines.append(f"- **TUNNEL_ID:** {result.tunnel_id}")
-    if "tunnel_token" in result.sealed_in:
-        lines.append(
-            f"- **TUNNEL_TOKEN:** <sealed: {result.sealed_in['tunnel_token']}>"
-        )
-    else:
-        lines.append(f"- **TUNNEL_TOKEN:** {result.tunnel_token}")
+    lines.append(
+        f"- **TUNNEL_TOKEN:** {_seal_or_value(result, 'tunnel_token', result.tunnel_token)}"
+    )
     lines.append(
         f"- **DNS:** CNAME {hostname} → {result.dns_target} (proxied)"
     )
@@ -34,17 +37,14 @@ def render_setup_markdown(result: SetupResult, *, hostname: str) -> str:
         lines.append(
             f"- **SERVICE_TOKEN_CLIENT_ID:** {result.service_token_client_id}"
         )
-        if "service_token_client_secret" in result.sealed_in:
+        if (
+            "service_token_client_secret" in result.sealed_in
+            or result.service_token_client_secret is not None
+        ):
             lines.append(
                 f"- **SERVICE_TOKEN_CLIENT_SECRET:** "
-                f"<sealed: {result.sealed_in['service_token_client_secret']}>"
+                f"{_seal_or_value(result, 'service_token_client_secret', result.service_token_client_secret)}"
             )
-        else:
-            if result.service_token_client_secret is not None:
-                lines.append(
-                    f"- **SERVICE_TOKEN_CLIENT_SECRET:** "
-                    f"{result.service_token_client_secret}"
-                )
     lines.append("")
     lines.append("## Steps")
     for i, step in enumerate(result.steps, start=1):
