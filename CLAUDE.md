@@ -108,6 +108,8 @@ exists; this section is authoritative for *what we plan next*.
 
 All work goes through a feature branch + PR + automated review cycle (qodo, Copilot, SonarCloud). The `cicd` skill at `.claude/skills/cicd/` owns the details — read its `SKILL.md` for the full workflow. Four cheat-sheet points:
 
+> **SonarCloud key:** the registered project is `agentculture_cloudflare` (predates the cultureflare rename), not the `<owner>_<repo>`-derived `agentculture_cultureflare`. Export `SONAR_PROJECT_KEY=agentculture_cloudflare` (or pass `--sonar-key`) when invoking `pr-status.sh` / `pr-comments.sh` against this repo so SonarCloud findings actually surface.
+
 - **Before you start: pull latest `main` and fork the branch from there.**
 
   ```sh

@@ -19,7 +19,7 @@ case "$mode" in
     *) echo "Usage: $(basename "$0") [--all]" >&2; exit 2 ;;
 esac
 
-[ -z "$files" ] && { echo "(no files to check)"; exit 0; }
+[[ -z "$files" ]] && { echo "(no files to check)"; exit 0; }
 
 # ----- Check 1: hard-coded /home/<user>/... paths -----
 hits1=$(echo "$files" | xargs -r grep -nE '/home/[a-z][a-z0-9_-]+/' 2>/dev/null || true)
@@ -31,7 +31,7 @@ hits1=$(echo "$files" | xargs -r grep -nE '/home/[a-z][a-z0-9_-]+/' 2>/dev/null 
 #   - ~/.culture/                     Culture mesh data this skill is supposed to read
 #   - ~/.config/                      XDG standard user-config base dir
 md_yaml=$(printf '%s' "$files" | grep -E '\.(md|ya?ml|toml|json|jsonc)$' || true)
-if [ -n "$md_yaml" ]; then
+if [[ -n "$md_yaml" ]]; then
     # shellcheck disable=SC2088 # tildes are intentional literals matching ~/... in committed docs
     hits2=$(printf '%s' "$md_yaml" | xargs -r grep -nE '~/\.[A-Za-z]' 2>/dev/null \
         | grep -vE '~/\.claude/skills/[^[:space:]"]+/scripts/' \
@@ -44,14 +44,14 @@ else
 fi
 
 fail=0
-if [ -n "$hits1" ]; then
+if [[ -n "$hits1" ]]; then
     echo "❌ Hard-coded /home/<user>/ paths:"
     printf '    %s\n' "${hits1//$'\n'/$'\n    '}"
     echo "   Fix: use ../sibling, repo URL, or \$WORKSPACE/sibling instead."
     fail=1
 fi
-if [ -n "$hits2" ]; then
-    [ "$fail" -eq 1 ] && echo
+if [[ -n "$hits2" ]]; then
+    [[ "$fail" -eq 1 ]] && echo
     echo "❌ Per-user ~/.<dotfile> config refs in committed doc/config:"
     printf '    %s\n' "${hits2//$'\n'/$'\n    '}"
     echo "   Allowed carve-outs: ~/.claude/skills/.../scripts/ (tool calls), ~/.claude/projects/ (memory), ~/.culture/ (mesh), ~/.config/ (XDG)."
@@ -59,5 +59,5 @@ if [ -n "$hits2" ]; then
     fail=1
 fi
 
-[ "$fail" -eq 0 ] && echo "✓ portability lint clean ($(echo "$files" | wc -l | tr -d ' ') files checked)"
+[[ "$fail" -eq 0 ]] && echo "✓ portability lint clean ($(printf '%s\n' "$files" | wc -l | tr -d ' ') files checked)"
 exit $fail

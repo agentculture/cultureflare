@@ -64,8 +64,9 @@ EOF
 }
 
 require_value() {
+    local flag="$1"
     if [[ $# -lt 2 ]]; then
-        echo "Missing value for $1" >&2
+        echo "Missing value for $flag" >&2
         usage
     fi
 }
@@ -131,9 +132,13 @@ Next step:     $5
 EOF
 }
 
+# Single source for the "not yet posted" status string — referenced both in
+# initial state and in per-iteration reset paths.
+readonly STATUS_NOT_POSTED="not-posted"
+
 iter=0
-qodo_status="not-posted"
-copilot_status="not-posted"
+qodo_status="$STATUS_NOT_POSTED"
+copilot_status="$STATUS_NOT_POSTED"
 
 while (( iter < MAX_ITERS )); do
     iter=$((iter + 1))
@@ -188,7 +193,7 @@ while (( iter < MAX_ITERS )); do
     elif (( qodo_any > 0 )); then
         qodo_status="placeholder-only"
     else
-        qodo_status="not-posted"
+        qodo_status="$STATUS_NOT_POSTED"
     fi
 
     # 4. Copilot readiness — at least one top-level review with a non-empty
@@ -200,7 +205,7 @@ while (( iter < MAX_ITERS )); do
     if (( copilot_count > 0 )); then
         copilot_status="ready"
     else
-        copilot_status="not-posted"
+        copilot_status="$STATUS_NOT_POSTED"
     fi
 
     # 5. Done?

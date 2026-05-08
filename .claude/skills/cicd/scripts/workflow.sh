@@ -35,7 +35,7 @@ SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$SKILL_DIR/../../.." && pwd)"
 
 CFG="$REPO_ROOT/.claude/skills.local.yaml"
-[ -f "$CFG" ] || CFG="$REPO_ROOT/.claude/skills.local.yaml.example"
+[[ -f "$CFG" ]] || CFG="$REPO_ROOT/.claude/skills.local.yaml.example"
 
 # Read a top-level YAML list from CFG. Schema is intentionally tiny:
 #   <key>:
@@ -43,7 +43,8 @@ CFG="$REPO_ROOT/.claude/skills.local.yaml"
 #     - item
 # Stops at the next top-level key. No PyYAML dependency.
 read_list() {
-    awk -v key="$1" '
+    local key="$1"
+    awk -v key="$key" '
         function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
         {
             line = $0
@@ -77,7 +78,7 @@ case "$cmd" in
         bash "$SCRIPT_DIR/pr-comments.sh" "$PR"
         ;;
     poll-readiness)
-        if [ $# -lt 1 ]; then
+        if [[ $# -lt 1 ]]; then
             echo "Usage: workflow.sh poll-readiness <PR> [--max-iters N] [--interval SECS] [--repo OWNER/REPO]" >&2
             exit 2
         fi
@@ -87,7 +88,7 @@ case "$cmd" in
         # Forward all remaining args (PR number plus any --wait/--repo
         # flags wait-and-check.sh accepts) so docs that promise
         # `--wait <secs>` actually work.
-        if [ $# -lt 1 ]; then
+        if [[ $# -lt 1 ]]; then
             echo "Usage: workflow.sh wait-after-push <PR> [--wait SECS] [--repo OWNER/REPO]" >&2
             exit 2
         fi
@@ -105,7 +106,7 @@ case "$cmd" in
             --max-iters "$ITERS" --interval "$INTERVAL" "$PR"
         POLL_RC=$?
         set -e
-        if [ "$POLL_RC" -ne 0 ]; then
+        if [[ "$POLL_RC" -ne 0 ]]; then
             echo "(poll-readiness exited $POLL_RC — falling through to status/comments anyway)" >&2
         fi
         # pr-status.sh is the source of truth for the SonarCloud / unresolved
@@ -119,7 +120,7 @@ case "$cmd" in
             STATUS_RC=$?
         fi
         printf '%s\n' "$STATUS_OUT"
-        if [ "$STATUS_RC" -ne 0 ]; then
+        if [[ "$STATUS_RC" -ne 0 ]]; then
             echo >&2
             echo "✗ pr-status.sh failed (exit $STATUS_RC) — cannot determine PR state" >&2
             exit "$STATUS_RC"
@@ -132,7 +133,7 @@ case "$cmd" in
         else
             COMMENTS_RC=$?
         fi
-        if [ "$COMMENTS_RC" -ne 0 ]; then
+        if [[ "$COMMENTS_RC" -ne 0 ]]; then
             echo >&2
             echo "✗ pr-comments.sh failed (exit $COMMENTS_RC) — review threads not fetched" >&2
             exit "$COMMENTS_RC"
@@ -146,12 +147,12 @@ case "$cmd" in
             SONAR_FAIL=1
         fi
         if PENDING=$(printf '%s\n' "$STATUS_OUT" | grep -oE 'Unresolved:[[:space:]]+[0-9]+' | grep -oE '[0-9]+$' | head -1); then
-            [ -n "${PENDING:-}" ] && [ "$PENDING" -gt 0 ] && UNRESOLVED=1
+            [[ -n "${PENDING:-}" && "$PENDING" -gt 0 ]] && UNRESOLVED=1
         fi
-        if [ "$SONAR_FAIL" -eq 1 ] || [ "$UNRESOLVED" -eq 1 ]; then
+        if [[ "$SONAR_FAIL" -eq 1 || "$UNRESOLVED" -eq 1 ]]; then
             echo >&2
-            [ "$SONAR_FAIL" -eq 1 ] && echo "✗ SonarCloud quality gate ERROR" >&2
-            [ "$UNRESOLVED" -eq 1 ] && echo "✗ ${PENDING} unresolved review thread(s)" >&2
+            [[ "$SONAR_FAIL" -eq 1 ]] && echo "✗ SonarCloud quality gate ERROR" >&2
+            [[ "$UNRESOLVED" -eq 1 ]] && echo "✗ ${PENDING} unresolved review thread(s)" >&2
             exit 1
         fi
         echo >&2
@@ -164,32 +165,32 @@ case "$cmd" in
     delta)
         any=0
         while IFS= read -r sibling; do
-            [ -z "$sibling" ] && continue
+            [[ -z "$sibling" ]] && continue
             any=1
             sibling_abs="$REPO_ROOT/$sibling"
-            if [ ! -d "$sibling_abs" ] && [ ! -d "$sibling" ]; then
+            if [[ ! -d "$sibling_abs" && ! -d "$sibling" ]]; then
                 echo "=== $sibling ==="
                 echo "(not present on disk — skipped)"
                 continue
             fi
             target="$sibling_abs"
-            [ -d "$target" ] || target="$sibling"
+            [[ -d "$target" ]] || target="$sibling"
             echo "=== $target ==="
-            if [ -f "$target/CLAUDE.md" ]; then
+            if [[ -f "$target/CLAUDE.md" ]]; then
                 head -40 "$target/CLAUDE.md"
                 echo "..."
             else
                 echo "(no CLAUDE.md)"
             fi
             echo "--- culture.yaml ---"
-            if [ -f "$target/culture.yaml" ]; then
+            if [[ -f "$target/culture.yaml" ]]; then
                 cat "$target/culture.yaml"
             else
                 echo "(no culture.yaml)"
             fi
             echo
         done < <(read_list sibling_projects)
-        [ "$any" -eq 0 ] && echo "(no sibling_projects configured in $CFG)"
+        [[ "$any" -eq 0 ]] && echo "(no sibling_projects configured in $CFG)"
         ;;
     help|--help|-h)
         sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# *//'
