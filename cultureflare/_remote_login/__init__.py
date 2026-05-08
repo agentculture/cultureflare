@@ -9,6 +9,8 @@ CLI parsing or rendering. The CLI module wraps them.
 
 from __future__ import annotations
 
+import getpass
+
 from cultureflare._remote_login._access_app import (
     delete_app, ensure_app, find_app,
 )
@@ -20,15 +22,28 @@ from cultureflare._remote_login._common import (
     Context, SetupResult, ShowResult, StepRecord, TeardownResult,
 )
 from cultureflare._remote_login._dns import delete_cname, ensure_cname, find_cname
+from cultureflare._remote_login._seal_plan import SealPlan, derive_seal_plan
 from cultureflare._remote_login._service_token import (
     delete_service_token, ensure_service_token, find_service_token,
 )
 from cultureflare._remote_login._tunnel import (
     delete_tunnel, ensure_tunnel, find_tunnel, get_tunnel_token,
 )
+from cultureflare._secrets import _shushu_sink
 from cultureflare.cli._errors import EXIT_USER_ERROR, CfafiError
 
 __all__ = ["setup", "show", "teardown"]
+
+
+def _whoami() -> str:
+    """OS username for sealed_in path rendering when --shushu (self).
+
+    Used only for the user-facing marker string. Failure to resolve
+    (very rare on Linux) falls back to literal '-' to avoid a crash."""
+    try:
+        return getpass.getuser()
+    except Exception:
+        return "-"
 
 
 def setup(
@@ -38,6 +53,7 @@ def setup(
     domains: list[str],
     with_service_token: bool,
     session_duration: str,
+    seal: SealPlan | None = None,
 ) -> SetupResult:
     """Run the full setup against the live CF API.
 
@@ -45,6 +61,8 @@ def setup(
     we surface a clear error rather than auto-onboard (onboarding needs
     an auth_domain we don't have at this layer).
     """
+    if seal is None:
+        seal = derive_seal_plan(hostname=ctx.hostname, shushu_arg=None)
     steps: list[StepRecord] = []
 
     # 1. Zero Trust org — verified, never created here.
@@ -129,6 +147,50 @@ def setup(
             detail=f"client_id={svc_cid}",
         ))
 
+    sealed_in: dict[str, str] = {}
+    if seal.enabled:
+        # 1. Seal tunnel token.
+        _shushu_sink.seal(
+            seal.tunnel_token_target,
+            tunnel_token.encode("utf-8"),
+            seal.metadata,
+        )
+        marker_user = seal.user or _whoami()
+        sealed_in["tunnel_token"] = (
+            f"shushu/{marker_user}/{seal.tunnel_token_target.name}"
+        )
+        tunnel_token = None  # type: ignore[assignment]
+
+        # 2. Seal service-token secret. If this fails after the tunnel
+        # seal succeeded, the service-token secret is one-shot from CF
+        # and is now lost — surface a curated rotate remediation.
+        if with_service_token and svc_secret is not None:
+            try:
+                _shushu_sink.seal(
+                    seal.service_token_secret_target,
+                    svc_secret.encode("utf-8"),
+                    seal.metadata,
+                )
+            except CfafiError as exc:
+                raise CfafiError(
+                    code=exc.code,
+                    message=(
+                        "partial seal — tunnel-token stored, "
+                        f"service-token secret failed: {exc.message}"
+                    ),
+                    remediation=(
+                        f"cultureflare remote-login teardown "
+                        f"--hostname {ctx.hostname} "
+                        f"--shushu{'=' + seal.user if seal.user else ''} "
+                        "--apply, then re-run setup; the service-token "
+                        "secret was one-shot and must be rotated."
+                    ),
+                ) from exc
+            sealed_in["service_token_client_secret"] = (
+                f"shushu/{marker_user}/{seal.service_token_secret_target.name}"
+            )
+            svc_secret = None  # type: ignore[assignment]
+
     return SetupResult(
         team_domain=team_domain,
         tunnel_id=tunnel_id,
@@ -143,6 +205,7 @@ def setup(
         service_token_client_id=svc_cid,
         service_token_client_secret=svc_secret,
         steps=steps,
+        sealed_in=sealed_in,
     )
 
 

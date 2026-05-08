@@ -6,6 +6,9 @@ from cultureflare._remote_login import setup, show, teardown
 from cultureflare._remote_login._common import (
     Context, derive_names, SetupResult, ShowResult, TeardownResult,
 )
+from cultureflare._remote_login._seal_plan import derive_seal_plan
+from cultureflare._secrets._types import ShushuTarget
+from cultureflare.cli._errors import CfafiError, EXIT_API
 
 
 def _ctx(hostname="irc.culture.dev"):
@@ -15,6 +18,86 @@ def _ctx(hostname="irc.culture.dev"):
         hostname=hostname,
         names=derive_names(hostname=hostname),
     )
+
+
+def _ctx_for(hostname):
+    return Context(
+        account_id="acc-1",
+        zone_id="zid-1",
+        hostname=hostname,
+        names=derive_names(hostname=hostname),
+    )
+
+
+def _program_setup_happy_path(
+    http_stub,
+    *,
+    account_id="acc-1",
+    zone_id="zid-1",
+    hostname="app.example.com",
+    tunnel_id="tun-1",
+    app_id="app-1",
+    policy_id="pol-1",
+    svc_id="st-1",
+    svc_client_id="CID",
+    svc_client_secret="SEC",
+):
+    """Program all HTTP stubs for a happy-path setup() run."""
+    tunnel_name = hostname.replace(".", "-")
+    svc_name = f"{hostname}-svc"
+
+    http_stub.set("GET", f"/accounts/{account_id}/access/organizations", {
+        "success": True, "errors": [], "messages": [],
+        "result": {"name": "AC", "auth_domain": "ac.cloudflareaccess.com"},
+    })
+    http_stub.set("GET", f"/accounts/{account_id}/cfd_tunnel", {
+        "success": True, "errors": [], "messages": [],
+        "result": [], "result_info": {"page": 1, "total_pages": 1},
+    })
+    http_stub.set("POST", f"/accounts/{account_id}/cfd_tunnel", {
+        "success": True, "errors": [], "messages": [],
+        "result": {"id": tunnel_id, "name": tunnel_name},
+    })
+    http_stub.set(
+        "GET", f"/accounts/{account_id}/cfd_tunnel/{tunnel_id}/token",
+        {"success": True, "errors": [], "messages": [], "result": "TUN-TOK"},
+    )
+    http_stub.set("GET", f"/zones/{zone_id}/dns_records", {
+        "success": True, "errors": [], "messages": [],
+        "result": [], "result_info": {"page": 1, "total_pages": 1},
+    })
+    http_stub.set("POST", f"/zones/{zone_id}/dns_records", {
+        "success": True, "errors": [], "messages": [],
+        "result": {"id": "rec-1"},
+    })
+    http_stub.set("GET", f"/accounts/{account_id}/access/apps", {
+        "success": True, "errors": [], "messages": [],
+        "result": [], "result_info": {"page": 1, "total_pages": 1},
+    })
+    http_stub.set("POST", f"/accounts/{account_id}/access/apps", {
+        "success": True, "errors": [], "messages": [],
+        "result": {"id": app_id},
+    })
+    http_stub.set("GET", f"/accounts/{account_id}/access/apps/{app_id}/policies", {
+        "success": True, "errors": [], "messages": [],
+        "result": [], "result_info": {"page": 1, "total_pages": 1},
+    })
+    http_stub.set(
+        "POST", f"/accounts/{account_id}/access/apps/{app_id}/policies",
+        {"success": True, "errors": [], "messages": [],
+         "result": {"id": policy_id}},
+    )
+    http_stub.set("GET", f"/accounts/{account_id}/access/service_tokens", {
+        "success": True, "errors": [], "messages": [],
+        "result": [], "result_info": {"page": 1, "total_pages": 1},
+    })
+    http_stub.set("POST", f"/accounts/{account_id}/access/service_tokens", {
+        "success": True, "errors": [], "messages": [],
+        "result": {
+            "id": svc_id, "name": svc_name,
+            "client_id": svc_client_id, "client_secret": svc_client_secret,
+        },
+    })
 
 
 def _zt_existing():
@@ -43,40 +126,7 @@ def test_setup_runs_all_six_steps_in_order_when_nothing_exists(http_stub):
     # Program all responses via set() so method+path keying works
     # regardless of call order (avoids queue ordering pitfalls when
     # GETs and POSTs are interleaved).
-    http_stub.set("GET", "/accounts/acc-1/access/organizations", _zt_existing())
-    http_stub.set("GET", "/accounts/acc-1/cfd_tunnel", _empty_list())
-    http_stub.set("POST", "/accounts/acc-1/cfd_tunnel", {
-        "success": True, "errors": [], "messages": [],
-        "result": {"id": "tun-1", "name": "irc-culture-dev"},
-    })
-    http_stub.set(
-        "GET", "/accounts/acc-1/cfd_tunnel/tun-1/token",
-        {"success": True, "errors": [], "messages": [], "result": "TUN-TOK"},
-    )
-    http_stub.set("GET", "/zones/zid-1/dns_records", _empty_list())
-    http_stub.set("POST", "/zones/zid-1/dns_records", {
-        "success": True, "errors": [], "messages": [],
-        "result": {"id": "rec-1"},
-    })
-    http_stub.set("GET", "/accounts/acc-1/access/apps", _empty_list())
-    http_stub.set("POST", "/accounts/acc-1/access/apps", {
-        "success": True, "errors": [], "messages": [],
-        "result": {"id": "app-1"},
-    })
-    http_stub.set("GET", "/accounts/acc-1/access/apps/app-1/policies", _empty_list())
-    http_stub.set(
-        "POST", "/accounts/acc-1/access/apps/app-1/policies",
-        {"success": True, "errors": [], "messages": [],
-         "result": {"id": "pol-1"}},
-    )
-    http_stub.set("GET", "/accounts/acc-1/access/service_tokens", _empty_list())
-    http_stub.set("POST", "/accounts/acc-1/access/service_tokens", {
-        "success": True, "errors": [], "messages": [],
-        "result": {
-            "id": "st-1", "name": "irc.culture.dev-svc",
-            "client_id": "CID", "client_secret": "SEC",
-        },
-    })
+    _program_setup_happy_path(http_stub, hostname="irc.culture.dev")
 
     result = setup(
         ctx=_ctx(),
@@ -283,3 +333,87 @@ def test_show_short_circuits_access_endpoints_when_zt_disabled(http_stub):
     # Access endpoints MUST NOT appear.
     assert "/accounts/acc-1/access/apps" not in paths
     assert "/accounts/acc-1/access/service_tokens" not in paths
+
+
+def test_setup_with_seal_calls_sink_twice_with_correct_targets(
+    http_stub, monkeypatch,
+):
+    _program_setup_happy_path(http_stub, hostname="app.example.com")
+
+    seal_calls: list[tuple[ShushuTarget, bytes]] = []
+
+    def fake_seal(target, secret, meta):
+        seal_calls.append((target, bytes(secret)))
+
+    monkeypatch.setattr(
+        "cultureflare._secrets._shushu_sink.seal", fake_seal
+    )
+
+    plan = derive_seal_plan(hostname="app.example.com", shushu_arg="alice")
+    ctx = _ctx_for("app.example.com")
+    result = setup(
+        ctx=ctx, emails=["x@y"], domains=[],
+        with_service_token=True, session_duration="24h",
+        seal=plan,
+    )
+
+    assert len(seal_calls) == 2
+    targets = [c[0].name for c in seal_calls]
+    assert "CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN" in targets
+    assert "CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET" in targets
+    assert all(c[0].user == "alice" for c in seal_calls)
+    assert result.tunnel_token is None
+    assert result.service_token_client_secret is None
+    assert result.sealed_in["tunnel_token"] == \
+        "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN"
+    assert result.sealed_in["service_token_client_secret"] == \
+        "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET"
+
+
+def test_setup_with_seal_partial_failure_raises_rotate_remediation(
+    http_stub, monkeypatch,
+):
+    _program_setup_happy_path(http_stub, hostname="app.example.com")
+
+    state = {"calls": 0}
+
+    def fake_seal(target, secret, meta):
+        state["calls"] += 1
+        if state["calls"] == 2:
+            raise CfafiError(
+                code=EXIT_API,
+                message="shushu store unreadable",
+                remediation="shushu doctor",
+            )
+
+    monkeypatch.setattr(
+        "cultureflare._secrets._shushu_sink.seal", fake_seal
+    )
+
+    plan = derive_seal_plan(hostname="app.example.com", shushu_arg="")
+    ctx = _ctx_for("app.example.com")
+    with pytest.raises(CfafiError) as exc:
+        setup(
+            ctx=ctx, emails=["x@y"], domains=[],
+            with_service_token=True, session_duration="24h",
+            seal=plan,
+        )
+    assert exc.value.code == EXIT_API
+    assert "rotate" in (exc.value.remediation + exc.value.message).lower()
+    assert "teardown" in exc.value.remediation
+
+
+def test_setup_without_seal_returns_secrets_in_clear(http_stub):
+    # Regression guard: --shushu opt-in. Default behaviour unchanged.
+    _program_setup_happy_path(http_stub, hostname="app.example.com")
+    plan = derive_seal_plan(hostname="app.example.com", shushu_arg=None)
+    ctx = _ctx_for("app.example.com")
+    result = setup(
+        ctx=ctx, emails=["x@y"], domains=[],
+        with_service_token=True, session_duration="24h",
+        seal=plan,
+    )
+    assert result.tunnel_token is not None
+    assert result.tunnel_token != ""
+    assert result.service_token_client_secret is not None
+    assert result.sealed_in == {}
