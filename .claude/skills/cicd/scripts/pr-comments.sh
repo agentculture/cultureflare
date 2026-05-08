@@ -117,6 +117,7 @@ SONAR_KEY="${SONAR_PROJECT_KEY:-${REPO%%/*}_${REPO##*/}}"
 SONAR_RAW=$(curl -sS --get --connect-timeout 5 --max-time 15 --retry 2 --retry-delay 1 \
     --data-urlencode "componentKeys=${SONAR_KEY}" \
     --data-urlencode "pullRequest=${PR_NUMBER}" \
+    --data-urlencode "statuses=OPEN,CONFIRMED" \
     --data-urlencode "ps=100" \
     "https://sonarcloud.io/api/issues/search" 2>/dev/null || printf '{}')
 
