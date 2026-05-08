@@ -127,55 +127,74 @@ def render_setup_dryrun_markdown(
     return "\n".join(lines) + "\n"
 
 
+def _row_tunnel(tunnel: dict | None) -> str:
+    if tunnel is None:
+        return "- **tunnel:** (not found)"
+    return f"- **tunnel:** {tunnel.get('name')} (id={tunnel.get('id')})"
+
+
+def _row_dns(dns: dict | None, hostname: str) -> str:
+    if dns is None:
+        return "- **dns:** (not found)"
+    proxied = bool(dns.get("proxied"))
+    marker = "✓" if proxied else "⚠ (unproxied — Access bypassed)"
+    label = "proxied" if proxied else "unproxied"
+    return (
+        f"- **dns:** CNAME {hostname} → {dns.get('content')} "
+        f"({label}) {marker}"
+    )
+
+
+def _row_access_app(app: dict | None) -> str:
+    body = f"id={app['id']}" if app else "(not found)"
+    return f"- **access-app:** {body}"
+
+
+def _row_policies(policy: dict | None) -> str:
+    body = "1 allow rule" if policy else "(not found)"
+    return f"- **policies:** {body}"
+
+
+def _row_service_token(svc: dict | None) -> str:
+    if svc is None:
+        return "- **service-token:** (not found)"
+    return (
+        f"- **service-token:** {svc.get('name')} "
+        f"(id={svc.get('id')}, secret not retrievable)"
+    )
+
+
+def _row_sealed_status(key: str, status: dict | None) -> str:
+    if status is None:
+        return f"  - {key}: ?? (shushu not installed)"
+    state = "present" if status.get("present") else "absent"
+    src = status.get("source")
+    tail = f" (source: {src})" if src else ""
+    return f"  - {key}: {status.get('name')} — {state}{tail}"
+
+
+def _rows_sealed_in_status(
+    status_map: dict[str, dict | None],
+) -> list[str]:
+    if not status_map:
+        return []
+    rows = ["- **sealed-in:**"]
+    rows.extend(_row_sealed_status(k, v) for k, v in status_map.items())
+    return rows
+
+
 def render_show_markdown(result: ShowResult, *, hostname: str) -> str:
-    lines: list[str] = []
-    lines.append(f"## Remote login state — {hostname}")
-    lines.append("")
-    lines.append(
-        f"- **zero-trust-org:** {result.team_domain or '(not found)'}"
-    )
-    if result.tunnel is not None:
-        lines.append(
-            f"- **tunnel:** {result.tunnel.get('name')} "
-            f"(id={result.tunnel.get('id')})"
-        )
-    else:
-        lines.append("- **tunnel:** (not found)")
-    if result.dns is not None:
-        proxied = bool(result.dns.get("proxied"))
-        marker = "✓" if proxied else "⚠ (unproxied — Access bypassed)"
-        lines.append(
-            f"- **dns:** CNAME {hostname} → {result.dns.get('content')} "
-            f"({'proxied' if proxied else 'unproxied'}) {marker}"
-        )
-    else:
-        lines.append("- **dns:** (not found)")
-    lines.append(
-        f"- **access-app:** "
-        f"{'id=' + result.access_app['id'] if result.access_app else '(not found)'}"
-    )
-    lines.append(
-        f"- **policies:** "
-        f"{'1 allow rule' if result.policy else '(not found)'}"
-    )
-    if result.service_token is not None:
-        lines.append(
-            f"- **service-token:** {result.service_token.get('name')} "
-            f"(id={result.service_token.get('id')}, "
-            f"secret not retrievable)"
-        )
-    else:
-        lines.append("- **service-token:** (not found)")
-    if result.sealed_in_status:
-        lines.append("- **sealed-in:**")
-        for key, status in result.sealed_in_status.items():
-            if status is None:
-                lines.append(f"  - {key}: ?? (shushu not installed)")
-                continue
-            state = "present" if status.get("present") else "absent"
-            src = status.get("source")
-            tail = f" (source: {src})" if src else ""
-            lines.append(f"  - {key}: {status.get('name')} — {state}{tail}")
+    lines: list[str] = [
+        f"## Remote login state — {hostname}",
+        "",
+        f"- **zero-trust-org:** {result.team_domain or '(not found)'}",
+        _row_tunnel(result.tunnel),
+        _row_dns(result.dns, hostname),
+        _row_access_app(result.access_app),
+        _row_policies(result.policy),
+        _row_service_token(result.service_token),
+    ]
+    lines.extend(_rows_sealed_in_status(result.sealed_in_status))
     return "\n".join(lines) + "\n"
 
 
