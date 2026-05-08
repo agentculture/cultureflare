@@ -278,24 +278,25 @@ unused by the current workflow.)
    - Repo: `cfafi` *(repo rename is deferred; the publisher follows
      the source repo, not the package name)*
    - Workflow: `publish.yml`
-   - Environment: `pypi-cultureflare`
-2. Repeat on TestPyPI with environment `testpypi-cultureflare`.
-3. GitHub: Settings → Environments → `pypi-cultureflare` and
-   `testpypi-cultureflare`. No secrets needed.
+   - Environment: `pypi`
+2. Repeat on TestPyPI with environment `testpypi`.
+3. GitHub: Settings → Environments → `pypi` and `testpypi` already
+   exist from the legacy cfafi setup; no new environments needed.
 
 The publish workflow at `.github/workflows/publish.yml` builds with
 `name = "cultureflare"` directly from `pyproject.toml` (no
 in-place rewrite) and uploads via `uv publish --trusted-publishing
-always`.
+always` through the same `pypi` / `testpypi` environments cfafi
+used.
 
 ### `cfafi` (legacy, frozen at v0.2.2)
 
 The `cfafi` PyPI project still exists with its history through
 v0.2.2 — that's the bridge release that dual-published under both
 names. It's no longer in the publish workflow; nothing newer than
-0.2.2 will ever ship there. The corresponding pending publishers
-and GitHub environments (`pypi`, `testpypi`) can stay in place
-without effect, or be removed in a follow-up cleanup PR.
+0.2.2 will ever ship there. The cfafi pending publisher on PyPI is
+now superseded by the cultureflare publisher pointing at the same
+`pypi` / `testpypi` GitHub environments.
 
 ## 9. Operator token scopes (for `cfafi remote-login`)
 

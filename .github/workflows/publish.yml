@@ -42,7 +42,7 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     needs: test
     runs-on: ubuntu-latest
-    environment: testpypi-cultureflare
+    environment: testpypi
     permissions:
       contents: read
       id-token: write
@@ -77,7 +77,7 @@ jobs:
     if: github.event_name == 'push'
     needs: test
     runs-on: ubuntu-latest
-    environment: pypi-cultureflare
+    environment: pypi
     permissions:
       contents: read
       id-token: write
