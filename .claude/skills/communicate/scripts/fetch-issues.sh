@@ -14,45 +14,40 @@
 set -euo pipefail
 shopt -s inherit_errexit
 
+readonly USAGE="Usage: fetch-issues.sh [RANGE|NUMBER...] [--repo OWNER/REPO]"
+
+# Print an optional error line + the usage string to stderr, then exit 2.
+usage_error() {
+  [[ -n "${1:-}" ]] && echo "Error: $1" >&2
+  echo "$USAGE" >&2
+  exit 2
+}
+
 REPO=""
 NUMBERS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)
-      if [[ $# -lt 2 || -z "$2" ]]; then
-        echo "Error: --repo requires a value (OWNER/REPO)" >&2
-        echo "Usage: fetch-issues.sh [RANGE|NUMBER...] [--repo OWNER/REPO]" >&2
-        exit 2
-      fi
+      [[ $# -lt 2 || -z "$2" ]] && usage_error "--repo requires a value (OWNER/REPO)"
       REPO="$2"
       shift 2 ;;
     *-*)  # range like 191-197
-      if [[ ! "$1" =~ ^[0-9]+-[0-9]+$ ]]; then
-        echo "Error: malformed range '$1' — expected START-END (e.g. 191-197)" >&2
-        echo "Usage: fetch-issues.sh [RANGE|NUMBER...] [--repo OWNER/REPO]" >&2
-        exit 2
-      fi
+      [[ "$1" =~ ^[0-9]+-[0-9]+$ ]] \
+        || usage_error "malformed range '$1' — expected START-END (e.g. 191-197)"
       IFS='-' read -r start end <<< "$1"
-      if (( start > end )); then
-        echo "Error: range '$1' has START greater than END" >&2
-        exit 2
-      fi
+      (( start <= end )) || usage_error "range '$1' has START greater than END"
       for ((i=start; i<=end; i++)); do NUMBERS+=("$i"); done
       shift ;;
     *)
-      if [[ ! "$1" =~ ^[0-9]+$ ]]; then
-        echo "Error: '$1' is not an issue number or START-END range" >&2
-        echo "Usage: fetch-issues.sh [RANGE|NUMBER...] [--repo OWNER/REPO]" >&2
-        exit 2
-      fi
+      [[ "$1" =~ ^[0-9]+$ ]] \
+        || usage_error "'$1' is not an issue number or START-END range"
       NUMBERS+=("$1"); shift ;;
   esac
 done
 
 if [[ ${#NUMBERS[@]} -eq 0 ]]; then
-  echo "Usage: fetch-issues.sh [RANGE|NUMBER...] [--repo OWNER/REPO]" >&2
-  exit 2
+  usage_error
 fi
 
 if ! command -v agtag >/dev/null 2>&1; then
