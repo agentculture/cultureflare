@@ -74,11 +74,9 @@ project_encoded=$(jq -rn --arg v "$project" '$v|@uri')
 # the project-existence check — a missing project returns CF's
 # structured "Project not found" error, which cf_api surfaces (don't
 # silence its stderr) before exiting 1. Pages list endpoints cap
-# per_page at 10 (CF error 8000024 on >=11); use cf_api directly so
-# the if-! pattern reliably catches project-not-found errors (cf_api
-# uses exit 1 which propagates through command substitution;
-# cf_api_paginated's set -e is suppressed inside if-!).
-if ! domains_json=$(cf_api "/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$project_encoded/domains?per_page=10"); then
+# per_page at 10 (CF error 8000024 on >=11); scope CF_PAGE_SIZE to
+# this call so other cf_api_paginated callers are unaffected.
+if ! domains_json=$(CF_PAGE_SIZE=10 cf_api_paginated "/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$project_encoded/domains"); then
   echo "HINT: could not resolve Pages project '$project'. Check the project name with cf-pages.sh." >&2
   exit 1
 fi
