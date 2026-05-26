@@ -118,6 +118,8 @@ Every write operation in this skill follows the same shape:
 | Add a redirect | `bash .claude/skills/cultureflare-write/scripts/cf-redirect-create.sh ...` |
 | Delete one Pages deployment | `bash .claude/skills/cultureflare-write/scripts/cf-pages-deployment-delete.sh ...` |
 | Bulk-delete all deployments in a Pages project | `bash .claude/skills/cultureflare-write/scripts/cf-pages-deployments-purge.sh ...` (two-phase, see §3.3) |
+| Delete a DNS record | `bash .claude/skills/cultureflare-write/scripts/cf-dns-delete.sh ...` |
+| Delete one redirect rule | `bash .claude/skills/cultureflare-write/scripts/cf-redirect-delete.sh ...` |
 
 Full flag reference for each script follows below.
 
@@ -170,6 +172,46 @@ the redirect won't fire. Use `cultureflare dns create` / `cf-dns-create.sh`
 (below) to add the apex and `www` records first, then create the
 redirect.
 
+### cf-redirect-delete.sh
+
+Deletes a **single** Single Redirect rule from a zone's
+`http_request_dynamic_redirect` ruleset — the rule whose expression
+matches `FROM_HOST`. A zone's redirect ruleset can hold many rules
+(e.g. `www`→apex plus several subdomain 301s); this removes one and
+leaves the rest untouched. It never deletes the whole ruleset.
+
+```sh
+# Dry-run (resolves the rule, prints what it would DELETE):
+bash .claude/skills/cultureflare-write/scripts/cf-redirect-delete.sh \
+  culture.dev agex.culture.dev
+
+# Apply for real:
+bash .claude/skills/cultureflare-write/scripts/cf-redirect-delete.sh \
+  culture.dev agex.culture.dev --apply
+```
+
+`ZONE` is the zone whose ruleset holds the rule (e.g. `culture.dev`),
+which is **not** the same as `FROM_HOST` when `FROM_HOST` is a
+subdomain (`agex.culture.dev`). Both are explicit positionals — nothing
+is inferred. The rule is matched on the anchored token
+`http.host eq "FROM_HOST"`, so a wildcard `www` rule or a different
+subdomain's rule is never caught by accident.
+
+Flags:
+
+- `--apply` — actually DELETE. Without it, the script is a dry-run.
+- `--json` — raw CloudFlare response envelope (the updated ruleset on
+  apply, a simulated body in dry-run).
+
+Exit codes: `0` success (dry-run or apply), `1` zone / ruleset / rule
+not found or ambiguous match or API error, `2` usage error.
+
+Idempotent teardown: if no rule matches `FROM_HOST` (already removed),
+the script exits 1 with "nothing to delete" rather than mutating
+anything. Uses the same `Zone · Single Redirect · Edit` scope as
+`cf-redirect-create.sh` — CF's "Edit" permission covers DELETE, so no
+token upgrade is needed.
+
 ### cf-dns-create.sh / cultureflare dns create
 
 Creates a DNS record in a zone. Same safety model as
@@ -213,6 +255,41 @@ Idempotency key: **type + name + content**. Two A records at the
 same name with different IPs are allowed (CF supports round-robin);
 two records with identical type+name+content are refused as
 duplicates.
+
+### cf-dns-delete.sh
+
+Deletes a DNS record from a zone, resolved by record **name**. Same
+safety model as the create scripts: dry-run by default, `--apply` to
+commit. Refuses ambiguous matches instead of guessing.
+
+```sh
+# Dry-run:
+bash .claude/skills/cultureflare-write/scripts/cf-dns-delete.sh \
+  culture.dev agex.culture.dev
+
+# Apply for real:
+bash .claude/skills/cultureflare-write/scripts/cf-dns-delete.sh \
+  culture.dev agex.culture.dev --apply
+```
+
+`ZONE` is the zone the record lives in (e.g. `culture.dev`); `NAME` is
+the fully-qualified record name (e.g. `agex.culture.dev`). If a name
+resolves to more than one record (e.g. an A + AAAA pair, or
+round-robin A records), the script lists the candidates and exits 1 —
+narrow the match with `--type` and/or `--content`.
+
+Flags:
+
+- `--type=TYPE` — narrow to a record type (`A`, `AAAA`, `CNAME`, `TXT`,
+  `MX`, `NS`, `SRV`, `CAA`).
+- `--content=VALUE` — narrow to records with this exact content.
+- `--apply` — actually DELETE. Without it, the script is a dry-run.
+- `--json` — raw CloudFlare response envelope (or simulated body in
+  dry-run).
+
+Exit codes: `0` success, `1` zone not found / no match / ambiguous
+match / API error, `2` usage error. Uses the same `Zone · DNS · Edit`
+scope as `cf-dns-create.sh` — DELETE needs no extra token scope.
 
 ### cf-pages-project-create.sh
 
@@ -663,11 +740,12 @@ downstream jq pipelines.
   deletes every deployment but leaves the zero-deployment project
   behind. A future `cf-pages-project-delete.sh` will land as a
   separate, smaller PR.
-- **Workers / DNS / zone deletion.** Still Phase 3 territory; new
+- **Workers / zone deletion.** Still Phase 3 territory; new
   `cf-*-delete.sh` scripts can follow the same dry-run-by-default
-  pattern. Whether to re-use the manifest gate depends on blast
-  radius — a single DNS record rarely warrants it; bulk route
-  deletion probably does.
+  pattern. (DNS-record deletion now exists — `cf-dns-delete.sh`; and
+  single redirect-rule deletion — `cf-redirect-delete.sh`.) Whether to
+  re-use the manifest gate depends on blast radius — a single DNS
+  record rarely warrants it; bulk route deletion probably does.
 - **Account-wide rulesets.** This skill only creates zone-level
   rulesets. Account-level rulesets (applied across many zones) are
   out of scope.

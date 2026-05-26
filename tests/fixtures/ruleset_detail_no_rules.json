@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "redirect-ruleset-id-culturedev-0001",
+    "name": "default",
+    "kind": "zone",
+    "phase": "http_request_dynamic_redirect"
+  }
+}

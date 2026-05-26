@@ -1,0 +1,35 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "redirect-ruleset-id-culturedev-0001",
+    "name": "default",
+    "kind": "zone",
+    "phase": "http_request_dynamic_redirect",
+    "rules": [
+      {
+        "id": "rule-agex-dup-a",
+        "action": "redirect",
+        "expression": "(http.host eq \"agex.culture.dev\")",
+        "action_parameters": {
+          "from_value": {
+            "target_url": {"expression": "concat(\"https://culture.dev/agex\", http.request.uri.path)"},
+            "status_code": 301
+          }
+        }
+      },
+      {
+        "id": "rule-agex-dup-b",
+        "action": "redirect",
+        "expression": "(http.host eq \"agex.culture.dev\") or (http.host eq \"www.agex.culture.dev\")",
+        "action_parameters": {
+          "from_value": {
+            "target_url": {"expression": "concat(\"https://culture.dev/agex\", http.request.uri.path)"},
+            "status_code": 302
+          }
+        }
+      }
+    ]
+  }
+}

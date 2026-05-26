@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "id": "redirect-ruleset-id-culturedev-0001",
+      "name": "default",
+      "description": "",
+      "kind": "zone",
+      "phase": "http_request_dynamic_redirect",
+      "source": "firewall_custom",
+      "version": "3",
+      "last_updated": "2026-04-20T23:27:07.254911Z"
+    }
+  ],
+  "result_info": {"page": 1, "per_page": 20, "total_pages": 1, "count": 1, "total_count": 1}
+}
