@@ -45,7 +45,7 @@ for arg in "$@"; do
       exit 0
       ;;
     -*)
-      echo "ERROR: unknown flag: $arg" >&2
+      printf '%s\n' "ERROR: unknown flag: $arg" >&2
       exit 2
       ;;
     *)
@@ -55,8 +55,8 @@ for arg in "$@"; do
 done
 
 if (( ${#positional[@]} != 2 )); then
-  echo "ERROR: expected ZONE and FROM_HOST positional args, got ${#positional[@]}" >&2
-  echo "usage: cf-redirect-delete.sh ZONE FROM_HOST [--apply] [--json]" >&2
+  printf '%s\n' "ERROR: expected ZONE and FROM_HOST positional args, got ${#positional[@]}" >&2
+  printf '%s\n' "usage: cf-redirect-delete.sh ZONE FROM_HOST [--apply] [--json]" >&2
   exit 2
 fi
 zone_name="${positional[0]}"
@@ -67,7 +67,7 @@ from_host="${positional[1]}"
 host_re='^[a-zA-Z0-9][a-zA-Z0-9.-]*$'
 for h in "$zone_name" "$from_host"; do
   if [[ ! "$h" =~ $host_re ]]; then
-    echo "ERROR: invalid hostname: $h" >&2
+    printf '%s\n' "ERROR: invalid hostname: $h" >&2
     exit 2
   fi
 done
@@ -82,7 +82,7 @@ zone_id=$(printf '%s' "$zones_json" | jq -r --arg name "$zone_name" \
   '[.result[] | select(.name == $name) | .id] | .[0] // ""')
 
 if [[ -z "$zone_id" ]]; then
-  echo "ERROR: zone $zone_name not found in this account" >&2
+  printf '%s\n' "ERROR: zone $zone_name not found in this account" >&2
   exit 1
 fi
 
@@ -100,7 +100,7 @@ ruleset_id=$(printf '%s' "$rulesets_json" | jq -r '
 ')
 
 if [[ -z "$ruleset_id" ]]; then
-  echo "ERROR: no redirect ruleset (http_request_dynamic_redirect) on zone $zone_name (nothing to delete)" >&2
+  printf '%s\n' "ERROR: no redirect ruleset (http_request_dynamic_redirect) on zone $zone_name (nothing to delete)" >&2
   exit 1
 fi
 
@@ -118,7 +118,7 @@ ruleset_detail=$(cf_api "/zones/$zone_id/rulesets/$ruleset_id")
 # shellcheck disable=SC2016  # single-quoted jq filter
 matches_json=$(printf '%s' "$ruleset_detail" | jq --arg h "$from_host" '
   [
-    .result.rules[]
+    (.result.rules // [])[]
     | select(.expression | contains("http.host eq \"" + $h + "\""))
     | {id, expression,
        target: (.action_parameters.from_value.target_url.expression
@@ -129,11 +129,11 @@ matches_json=$(printf '%s' "$ruleset_detail" | jq --arg h "$from_host" '
 match_count=$(printf '%s' "$matches_json" | jq 'length')
 
 if (( match_count == 0 )); then
-  echo "ERROR: no redirect rule for host '$from_host' in zone $zone_name's ruleset (nothing to delete)" >&2
+  printf '%s\n' "ERROR: no redirect rule for host '$from_host' in zone $zone_name's ruleset (nothing to delete)" >&2
   exit 1
 fi
 if (( match_count > 1 )); then
-  echo "ERROR: ambiguous match in zone $zone_name: host '$from_host' matches $match_count rules" >&2
+  printf '%s\n' "ERROR: ambiguous match in zone $zone_name: host '$from_host' matches $match_count rules" >&2
   printf '%s\n' "$matches_json" | jq -r '.[] | "  - \(.id)  \(.expression)"' >&2
   exit 1
 fi
@@ -184,7 +184,7 @@ if [[ "$mode" == "json" ]]; then
   exit 0
 fi
 
-remaining=$(printf '%s' "$response" | jq -r '.result.rules | length // 0' 2>/dev/null || echo '?')
+remaining=$(printf '%s' "$response" | jq -r '.result.rules | length // 0' 2>/dev/null || printf '%s' '?')
 printf '**Redirect rule deleted**\n\n'
 render_summary_kv
 printf -- '- **remaining rules in ruleset:** %s\n' "$remaining"

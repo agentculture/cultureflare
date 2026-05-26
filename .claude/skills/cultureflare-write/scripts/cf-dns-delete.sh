@@ -46,7 +46,7 @@ for arg in "$@"; do
       exit 0
       ;;
     -*)
-      echo "ERROR: unknown flag: $arg" >&2
+      printf '%s\n' "ERROR: unknown flag: $arg" >&2
       exit 2
       ;;
     *)
@@ -56,8 +56,8 @@ for arg in "$@"; do
 done
 
 if (( ${#positional[@]} != 2 )); then
-  echo "ERROR: expected ZONE and NAME positional args, got ${#positional[@]}" >&2
-  echo "usage: cf-dns-delete.sh ZONE NAME [--type=TYPE] [--content=VALUE] [--apply] [--json]" >&2
+  printf '%s\n' "ERROR: expected ZONE and NAME positional args, got ${#positional[@]}" >&2
+  printf '%s\n' "usage: cf-dns-delete.sh ZONE NAME [--type=TYPE] [--content=VALUE] [--apply] [--json]" >&2
   exit 2
 fi
 zone_name="${positional[0]}"
@@ -69,7 +69,7 @@ record_name="${positional[1]}"
 host_re='^[a-zA-Z0-9][a-zA-Z0-9.-]*$'
 for h in "$zone_name" "$record_name"; do
   if [[ ! "$h" =~ $host_re ]]; then
-    echo "ERROR: invalid hostname: $h" >&2
+    printf '%s\n' "ERROR: invalid hostname: $h" >&2
     exit 2
   fi
 done
@@ -79,7 +79,7 @@ if [[ -n "$type_filter" ]]; then
   case "$type_filter" in
     A|AAAA|CNAME|TXT|MX|NS|SRV|CAA) ;;
     *)
-      echo "ERROR: unsupported record type: $type_filter (allowed: A AAAA CNAME TXT MX NS SRV CAA)" >&2
+      printf '%s\n' "ERROR: unsupported record type: $type_filter (allowed: A AAAA CNAME TXT MX NS SRV CAA)" >&2
       exit 2
       ;;
   esac
@@ -95,7 +95,7 @@ zone_id=$(printf '%s' "$zones_json" | jq -r --arg name "$zone_name" \
   '[.result[] | select(.name == $name) | .id] | .[0] // ""')
 
 if [[ -z "$zone_id" ]]; then
-  echo "ERROR: zone $zone_name not found in this account" >&2
+  printf '%s\n' "ERROR: zone $zone_name not found in this account" >&2
   exit 1
 fi
 
@@ -129,13 +129,13 @@ selector="$record_name"
 [[ -n "$content_filter" ]] && selector="$selector content=$content_filter"
 
 if (( match_count == 0 )); then
-  echo "ERROR: no DNS record matching '$selector' on zone $zone_name (nothing to delete)" >&2
+  printf '%s\n' "ERROR: no DNS record matching '$selector' on zone $zone_name (nothing to delete)" >&2
   exit 1
 fi
 if (( match_count > 1 )); then
-  echo "ERROR: ambiguous match on zone $zone_name: '$selector' matches $match_count records" >&2
+  printf '%s\n' "ERROR: ambiguous match on zone $zone_name: '$selector' matches $match_count records" >&2
   printf '%s\n' "$matches_json" | jq -r '.[] | "  - \(.id)  \(.type)  \(.content)"' >&2
-  echo "       narrow with --type=TYPE and/or --content=VALUE." >&2
+  printf '%s\n' "       narrow with --type=TYPE and/or --content=VALUE." >&2
   exit 1
 fi
 

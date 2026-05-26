@@ -69,6 +69,18 @@ _assert_no_delete() {
   _assert_no_delete
 }
 
+@test "cf-redirect-delete exits 1 cleanly when the ruleset detail has no rules array (null guard)" {
+  cf_mock "/zones?per_page"    "zones_with_agentculture.json"
+  cf_mock "/rulesets?per_page" "rulesets_culture_dev.json"
+  cf_mock "/rulesets/redirect-ruleset-id-culturedev-0001" "ruleset_detail_no_rules.json"
+  run bash "$WRITE_SCRIPTS/cf-redirect-delete.sh" culture.dev agex.culture.dev --apply
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"no redirect rule for host 'agex.culture.dev'"* ]]
+  # The null guard must produce the controlled message, not a jq crash.
+  [[ "$output" != *"Cannot iterate over null"* ]]
+  _assert_no_delete
+}
+
 @test "cf-redirect-delete exits 1 on an ambiguous match and lists candidates" {
   cf_mock "/zones?per_page"    "zones_with_agentculture.json"
   cf_mock "/rulesets?per_page" "rulesets_culture_dev.json"

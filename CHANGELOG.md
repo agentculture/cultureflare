@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - cultureflare-write SKILL.md: documented the two delete scripts and removed DNS deletion from the "does NOT do yet" list.
 
+### Fixed
+
+- cf-redirect-delete.sh: guard the rule enumeration against a null/missing `rules` array (`(.result.rules // [])[]`) so a malformed ruleset-detail response yields the controlled "nothing to delete" exit 1 instead of a `jq` "Cannot iterate over null" crash under `set -e`.
+- cf-dns-delete.sh / cf-redirect-delete.sh: use `printf` instead of `echo` for all variable-bearing error/usage output (PR compliance 631479 — portable across shells).
+
 ## [0.8.0] - 2026-05-15
 
 ### Added
