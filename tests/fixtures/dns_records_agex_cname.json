@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "id": "dns-rec-agex-cname-000000000000000a",
+      "type": "CNAME",
+      "name": "agex.culture.dev",
+      "content": "culture.dev",
+      "proxiable": true,
+      "proxied": true,
+      "ttl": 1,
+      "created_on": "2026-04-20T23:16:41.540273Z",
+      "modified_on": "2026-04-20T23:16:41.540273Z"
+    }
+  ],
+  "result_info": {"page": 1, "per_page": 100, "total_pages": 1, "count": 1, "total_count": 1}
+}

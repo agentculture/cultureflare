@@ -135,3 +135,25 @@ permissions problem, which makes it easy to chase the wrong rabbit.
 for any zone-level Edit permission (Single Redirect, DNS, Workers
 Routes). `docs/SETUP.md` §1.5 lists every scope in one place so a
 fresh token covers the whole surface.
+
+## 7. Rulesets list omits the `rules` array
+
+**Symptom.** `GET /zones/:id/rulesets` returns each ruleset's
+metadata (id, phase, kind, version) but **no `rules`**. Iterating
+`.result[].rules` to find a specific rule yields nothing, so a
+delete-by-host lookup silently finds zero matches.
+
+**Root cause.** The list endpoint is a summary view. The `rules`
+array only comes back from the per-ruleset detail GET
+`GET /zones/:id/rulesets/:ruleset_id`.
+
+**Guard.** `cf-redirect-delete.sh`
+([scripts/cf-redirect-delete.sh](../scripts/cf-redirect-delete.sh))
+resolves the `http_request_dynamic_redirect` ruleset id from the list,
+then does a second `cf_api` (single-object) GET on the detail endpoint
+to enumerate `.result.rules` before selecting the rule to delete.
+Delete a single rule via
+`DELETE /zones/:id/rulesets/:ruleset_id/rules/:rule_id` (returns the
+updated ruleset) — **never** `DELETE …/rulesets/:ruleset_id`, which
+drops every rule in the phase (e.g. the `www`→apex and other subdomain
+redirects sharing that ruleset).

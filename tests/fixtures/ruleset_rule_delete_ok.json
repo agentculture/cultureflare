@@ -1,0 +1,47 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "redirect-ruleset-id-culturedev-0001",
+    "name": "default",
+    "description": "",
+    "kind": "zone",
+    "phase": "http_request_dynamic_redirect",
+    "source": "firewall_custom",
+    "version": "4",
+    "last_updated": "2026-05-26T00:00:00.000000Z",
+    "rules": [
+      {
+        "id": "rule-www-0002",
+        "version": "1",
+        "action": "redirect",
+        "description": "www.culture.dev -> apex",
+        "expression": "(http.request.full_uri wildcard r\"https://www.culture.dev/*\")",
+        "enabled": true,
+        "action_parameters": {
+          "from_value": {
+            "target_url": {"expression": "wildcard_replace(http.request.full_uri, r\"https://www.culture.dev/*\", r\"https://culture.dev/${1}\")"},
+            "status_code": 301,
+            "preserve_query_string": true
+          }
+        }
+      },
+      {
+        "id": "rule-citation-0003",
+        "version": "1",
+        "action": "redirect",
+        "description": "citation-cli.culture.dev 301",
+        "expression": "(http.host eq \"citation-cli.culture.dev\")",
+        "enabled": true,
+        "action_parameters": {
+          "from_value": {
+            "target_url": {"expression": "concat(\"https://culture.dev/citation-cli\", http.request.uri.path)"},
+            "status_code": 301,
+            "preserve_query_string": true
+          }
+        }
+      }
+    ]
+  }
+}

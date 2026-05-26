@@ -4,6 +4,18 @@ All notable changes to this project will be documented here. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-05-26
+
+### Added
+
+- cf-dns-delete.sh — delete a DNS record by name (dry-run by default, --apply to commit; refuses ambiguous matches; --type/--content narrowing).
+- cf-redirect-delete.sh — delete a single Single Redirect rule from a zone's http_request_dynamic_redirect ruleset by matching FROM_HOST, preserving the other rules in the ruleset.
+- Tests + fixtures for both new delete primitives, and a cf-api-gotchas entry documenting that the rulesets list omits the rules array (detail GET required).
+
+### Changed
+
+- cultureflare-write SKILL.md: documented the two delete scripts and removed DNS deletion from the "does NOT do yet" list.
+
 ## [0.8.0] - 2026-05-15
 
 ### Added
