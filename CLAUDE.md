@@ -54,7 +54,10 @@ Skills under `.claude/skills/`:
   (re-broadcast of `agentculture/devague`, tracking devague `0.11.1` /
   `c04b595`, MIT). Divergences from upstream: each `SKILL.md` carries
   `type: command` (required by the culture/agex skill loader, harmless on
-  plain `claude-code`) and `assign-to-workforce.sh` carries a
+  plain `claude-code`); the scripts carry repo-local shell hardening for
+  SonarCloud's `shelldre` ruleset (`[[ … ]]` over `[ … ]` per S7688,
+  positional params assigned to locals per S7679) — matching the `cicd`
+  skill's vendored-script precedent; and `assign-to-workforce.sh` keeps a
   `# shellcheck disable=SC2016` (literal backticks) for the `test-bash` gate.
   Runtime dep: `uv tool install devague`; `assign-to-workforce` additionally
   uses `git worktree` + the `cicd` skill for its final-PR gate.

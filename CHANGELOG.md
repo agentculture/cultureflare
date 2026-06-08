@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - assign-to-workforce.sh: added an inline `# shellcheck disable=SC2016` (the backticks are literal text, not a subshell) — cultureflare-local hardening so the test-bash shellcheck gate stays green.
+- think/spec-to-plan/assign-to-workforce scripts: repo-local shell hardening for SonarCloud's `shelldre` ruleset — `[[ … ]]` over `[ … ]` (S7688) and positional parameters assigned to locals (S7679) — clearing all 13 OPEN issues. Matches the `cicd` skill's documented vendored-script hardening; upstream (`agentculture/devague`) still carries the original `[ … ]` style.
 
 ## [0.9.0] - 2026-05-26
 
