@@ -8,7 +8,7 @@ description: >
   non-zero exit on Sonar ERROR or unresolved threads). Use when:
   creating PRs in cultureflare, handling review feedback, polling CI
   status, or the user says "create PR", "review comments", "address
-  feedback", "resolve threads", "/cicd". Vendored from steward 0.12.0;
+  feedback", "resolve threads", "/cicd". Vendored from steward 0.22.0;
   renamed from `pr-review` in steward 0.7.0; rebased on agex in 0.12.0.
 ---
 
@@ -131,6 +131,17 @@ currently `cultureflare`, since this repo has no `culture.yaml` yet.
 agex auto-appends the signature on `open` and `reply` only when the
 body isn't already signed. Hand-rolled `gh pr create` / `gh issue
 comment` calls should follow the same convention.
+
+## Finishing a branch
+
+When implementation on a branch is complete and tests pass, go straight
+to `workflow.sh open` (push the branch + open the PR). Do **not** stop to
+present a *merge / PR / keep / discard* menu and wait for a choice — in
+AgentCulture the standing default is **always "push and create a Pull
+Request."** This overrides the Superpowers `finishing-a-development-branch`
+skill's interactive menu, which otherwise pauses the flow at the moment
+work is ready to integrate. Merge-locally, keep-as-is, and discard happen
+only when the user explicitly asks for one of them.
 
 ## Triage rules
 

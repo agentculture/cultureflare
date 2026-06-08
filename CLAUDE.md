@@ -40,10 +40,13 @@ Skills under `.claude/skills/`:
 - `cultureflare/` — read-only inventory (zones, DNS, Workers, Pages, status).
 - `cultureflare-write/` — mutations; dry-run by default, `--apply` to commit.
   Carries `templates/` and `references/` (including `cf-api-gotchas.md`).
-- `cicd/` — PR-review workflow (vendored from steward 0.12.0): a thin layer
+- `cicd/` — PR-review workflow (vendored from steward 0.22.0): a thin layer
   over the `agex pr` CLI (`lint` / `open` / `read` / `reply` / `delta`) plus
   two steward extensions, `status` and `await`, for SonarCloud gating.
-  Renamed from `pr-review` to match the AgentCulture standard.
+  Renamed from `pr-review` to match the AgentCulture standard. The 0.22.0
+  resync adopted the "Finishing a branch" convention (go straight to
+  `workflow.sh open` instead of the Superpowers branch-completion menu);
+  cultureflare's script hardening is kept as a documented superset.
 - `communicate/` — cross-repo issue posts / comments / fetches (agtag-backed,
   auto-signed) and Culture mesh channel messages. Vendored from steward 0.12.0.
 - `poll/` — background reviewer-wait subagent (drives `agex pr read --wait`).

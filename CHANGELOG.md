@@ -4,6 +4,12 @@ All notable changes to this project will be documented here. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-06-08
+
+### Changed
+
+- skills/cicd: resynced from steward 0.22.0 (was 0.12.0). Adopted the new "Finishing a branch" convention (steward 0.18.0): go straight to workflow.sh open instead of stopping on the Superpowers branch-completion menu. Scripts unchanged — cultureflare hardened copies (shopt inherit_errexit, [[ ]] over [ ], sonar_curl timeout/retry, integer ID validation, SONAR_PROJECT_KEY=agentculture_cloudflare, extra portability carve-outs) remain a superset of steward simplified upstream. Deliberately did not pull steward agex-cli-inversion narrative, PyYAML note, or the poll/-dropping Long-waits rewrite. Resolves #38.
+
 ## [0.10.0] - 2026-06-08
 
 ### Added

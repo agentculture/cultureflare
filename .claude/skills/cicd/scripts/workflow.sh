@@ -4,7 +4,7 @@ shopt -s inherit_errexit
 
 # cultureflare cicd workflow — thin layer over `agex pr` plus two
 # steward extensions (`status`, `await`) for SonarCloud gating and
-# triage flow. Vendored from steward 0.12.0.
+# triage flow. Vendored from steward 0.22.0.
 #
 # Subcommands:
 #   lint                   `agex pr lint --exit-on-violation`. Same rules
