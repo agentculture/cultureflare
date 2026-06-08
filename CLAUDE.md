@@ -47,6 +47,20 @@ Skills under `.claude/skills/`:
 - `communicate/` — cross-repo issue posts / comments / fetches (agtag-backed,
   auto-signed) and Culture mesh channel messages. Vendored from steward 0.12.0.
 - `poll/` — background reviewer-wait subagent (drives `agex pr read --wait`).
+- `think/`, `spec-to-plan/`, `assign-to-workforce/` — the **devague workflow
+  trio**: the agent-facing operator chain over the deterministic `devague`
+  CLI (idea→spec via `think`, spec→plan via `spec-to-plan`, plan→parallel
+  implementation via `assign-to-workforce`). Vendored from `guildmaster`
+  (re-broadcast of `agentculture/devague`, tracking devague `0.11.1` /
+  `c04b595`, MIT). Divergences from upstream: each `SKILL.md` carries
+  `type: command` (required by the culture/agex skill loader, harmless on
+  plain `claude-code`); the scripts carry repo-local shell hardening for
+  SonarCloud's `shelldre` ruleset (`[[ … ]]` over `[ … ]` per S7688,
+  positional params assigned to locals per S7679) — matching the `cicd`
+  skill's vendored-script precedent; and `assign-to-workforce.sh` keeps a
+  `# shellcheck disable=SC2016` (literal backticks) for the `test-bash` gate.
+  Runtime dep: `uv tool install devague`; `assign-to-workforce` additionally
+  uses `git worktree` + the `cicd` skill for its final-PR gate.
 - `cultureflare/` (package) — Python CLI installed via `uv tool install cultureflare`; entry point `cultureflare`. Noun/verb surface (`cultureflare <noun> <verb>`) with markdown-default + `--json` output and dry-run / `--apply` safety for mutations. See `pyproject.toml` and `docs/superpowers/specs/2026-04-24-cfafi-v0.1.0-python-cli-design.md`.
 
 Read each skill's `SKILL.md` for its current script inventory — don't

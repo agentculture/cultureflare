@@ -4,6 +4,17 @@ All notable changes to this project will be documented here. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-06-08
+
+### Added
+
+- skills/think, skills/spec-to-plan, skills/assign-to-workforce — the devague workflow trio (idea→spec→plan→parallel implementation), the agent-facing operator chain over the deterministic devague CLI. Vendored from guildmaster (re-broadcast of agentculture/devague, tracking devague 0.11.1 / c04b595, MIT). Each SKILL.md carries type: command frontmatter (required by the culture/agex skill loader). Runtime dep: uv tool install devague; assign-to-workforce additionally uses git worktree + the cicd skill for its final-PR gate. Resolves #39.
+
+### Changed
+
+- assign-to-workforce.sh: added an inline `# shellcheck disable=SC2016` (the backticks are literal text, not a subshell) — cultureflare-local hardening so the test-bash shellcheck gate stays green.
+- think/spec-to-plan/assign-to-workforce scripts: repo-local shell hardening for SonarCloud's `shelldre` ruleset — `[[ … ]]` over `[ … ]` (S7688) and positional parameters assigned to locals (S7679) — clearing all 13 OPEN issues. Matches the `cicd` skill's documented vendored-script hardening; upstream (`agentculture/devague`) still carries the original `[ … ]` style.
+
 ## [0.9.0] - 2026-05-26
 
 ### Added
