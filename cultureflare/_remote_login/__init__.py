@@ -471,6 +471,58 @@ def show(*, ctx: Context, seal: SealPlan | None = None) -> ShowResult:
     )
 
 
+def _teardown_access(*, ctx: Context, steps: list[StepRecord]) -> None:
+    """Delete the Access-side resources (service token, policies, app).
+
+    Guarded on ``find_org``: when Zero Trust is disabled — a tunnel-only
+    (``--no-access``) hostname, or any non-ZT account — the ``/access/*``
+    endpoints return CF 9999, so skip them and let the caller proceed to
+    DNS + tunnel cleanup. ``svc`` is captured before its delete so the
+    service-token policy can still be looked up by token id.
+    """
+    if find_org(account_id=ctx.account_id) is None:
+        return
+    svc = find_service_token(
+        account_id=ctx.account_id, name=ctx.names.service_token_name,
+    )
+    if svc is not None:
+        delete_service_token(account_id=ctx.account_id, token_id=svc["id"])
+        steps.append(StepRecord(
+            name="service-token", action="deleted", detail=f"id={svc['id']}",
+        ))
+    app = find_app(account_id=ctx.account_id, hostname=ctx.hostname)
+    if app is None:
+        return
+    if svc is not None:
+        svc_policy = find_service_token_policy(
+            account_id=ctx.account_id, app_id=app["id"], token_id=svc["id"],
+        )
+        if svc_policy is not None:
+            delete_policy(
+                account_id=ctx.account_id, app_id=app["id"],
+                policy_id=svc_policy["id"],
+            )
+            steps.append(StepRecord(
+                name="service-token-policy", action="deleted",
+                detail=f"id={svc_policy['id']}",
+            ))
+    policy = find_policy(
+        account_id=ctx.account_id, app_id=app["id"],
+        name=ctx.names.policy_name,
+    )
+    if policy is not None:
+        delete_policy(
+            account_id=ctx.account_id, app_id=app["id"], policy_id=policy["id"],
+        )
+        steps.append(StepRecord(
+            name="allow-policy", action="deleted", detail=f"id={policy['id']}",
+        ))
+    delete_app(account_id=ctx.account_id, app_id=app["id"])
+    steps.append(StepRecord(
+        name="access-app", action="deleted", detail=f"id={app['id']}",
+    ))
+
+
 def teardown(
     *,
     ctx: Context,
@@ -488,65 +540,8 @@ def teardown(
         seal = derive_seal_plan(hostname=ctx.hostname, shushu_arg=None)
     steps: list[StepRecord] = []
 
-    # Access-side cleanup (service token, policies, app) only exists when Zero
-    # Trust is enabled. On a tunnel-only (--no-access) hostname — or any account
-    # without Zero Trust — the /access/* endpoints return CF 9999, so guard on
-    # find_org() (as show() does) and skip straight to DNS + tunnel cleanup.
-    svc = None
-    app = None
-    if find_org(account_id=ctx.account_id) is not None:
-        # 1. Service token (captured before delete for the policy lookup below).
-        svc = find_service_token(
-            account_id=ctx.account_id, name=ctx.names.service_token_name,
-        )
-        # 2. Allow-policy + service-token policy + 3. Access app.
-        app = find_app(account_id=ctx.account_id, hostname=ctx.hostname)
-
-    # 1. Service token.
-    if svc is not None:
-        delete_service_token(account_id=ctx.account_id, token_id=svc["id"])
-        steps.append(StepRecord(
-            name="service-token", action="deleted", detail=f"id={svc['id']}",
-        ))
-
-    # 2 + 3. Allow-policy + service-token policy + Access app.
-    if app is not None:
-        # Service-token policy: matched by include[].service_token.token_id.
-        # ``svc`` was captured BEFORE the token delete in step 1, so we
-        # still have the right id to look the policy up by even though
-        # the token itself is gone. Delete-app would cascade-delete any
-        # leftover policy too, but we surface the step explicitly.
-        if svc is not None:
-            svc_policy = find_service_token_policy(
-                account_id=ctx.account_id, app_id=app["id"],
-                token_id=svc["id"],
-            )
-            if svc_policy is not None:
-                delete_policy(
-                    account_id=ctx.account_id, app_id=app["id"],
-                    policy_id=svc_policy["id"],
-                )
-                steps.append(StepRecord(
-                    name="service-token-policy", action="deleted",
-                    detail=f"id={svc_policy['id']}",
-                ))
-        policy = find_policy(
-            account_id=ctx.account_id, app_id=app["id"],
-            name=ctx.names.policy_name,
-        )
-        if policy is not None:
-            delete_policy(
-                account_id=ctx.account_id, app_id=app["id"],
-                policy_id=policy["id"],
-            )
-            steps.append(StepRecord(
-                name="allow-policy", action="deleted",
-                detail=f"id={policy['id']}",
-            ))
-        delete_app(account_id=ctx.account_id, app_id=app["id"])
-        steps.append(StepRecord(
-            name="access-app", action="deleted", detail=f"id={app['id']}",
-        ))
+    # Access-side cleanup (Zero-Trust-guarded; skipped for tunnel-only / non-ZT).
+    _teardown_access(ctx=ctx, steps=steps)
 
     # 4. DNS.
     dns = find_cname(zone_id=ctx.zone_id, hostname=ctx.hostname)

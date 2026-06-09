@@ -13,6 +13,41 @@ def _seal_or_value(result: SetupResult, key: str, fallback: str | None) -> str:
     return str(fallback) if fallback is not None else "(none)"
 
 
+def _render_setup_access_lines(result: SetupResult) -> list[str]:
+    """Render the Access section of a setup result (empty-shaped in tunnel-only)."""
+    if result.access_app_id is None:
+        return [
+            "- **ACCESS:** (none — tunnel-only; the backend service provides "
+            "its own auth)"
+        ]
+    lines = [f"- **ACCESS_APP_ID:** {result.access_app_id}"]
+    policy_bits = []
+    if result.policy_emails:
+        policy_bits.append(f"allow [{', '.join(result.policy_emails)}]")
+    if result.policy_domains:
+        policy_bits.append(f"allow-domain [{', '.join(result.policy_domains)}]")
+    lines.append(f"- **POLICY:** {'; '.join(policy_bits)}")
+    if result.service_token_client_id is None:
+        return lines
+    lines.append(
+        f"- **SERVICE_TOKEN_CLIENT_ID:** {result.service_token_client_id}"
+    )
+    if (
+        "service_token_client_secret" in result.sealed_in
+        or result.service_token_client_secret is not None
+    ):
+        secret_display = _seal_or_value(
+            result, "service_token_client_secret",
+            result.service_token_client_secret,
+        )
+        lines.append(f"- **SERVICE_TOKEN_CLIENT_SECRET:** {secret_display}")
+    if result.service_token_policy_id is not None:
+        lines.append(
+            f"- **SERVICE_TOKEN_POLICY_ID:** {result.service_token_policy_id}"
+        )
+    return lines
+
+
 def render_setup_markdown(result: SetupResult, *, hostname: str) -> str:
     lines: list[str] = []
     lines.append(f"## Remote login set up — {hostname}")
@@ -30,38 +65,7 @@ def render_setup_markdown(result: SetupResult, *, hostname: str) -> str:
     lines.append(
         f"- **DNS:** CNAME {hostname} → {result.dns_target} (proxied)"
     )
-    if result.access_app_id is None:
-        lines.append(
-            "- **ACCESS:** (none — tunnel-only; the backend service provides "
-            "its own auth)"
-        )
-    else:
-        lines.append(f"- **ACCESS_APP_ID:** {result.access_app_id}")
-        policy_bits = []
-        if result.policy_emails:
-            policy_bits.append(f"allow [{', '.join(result.policy_emails)}]")
-        if result.policy_domains:
-            policy_bits.append(f"allow-domain [{', '.join(result.policy_domains)}]")
-        lines.append(f"- **POLICY:** {'; '.join(policy_bits)}")
-        if result.service_token_client_id is not None:
-            lines.append(
-                f"- **SERVICE_TOKEN_CLIENT_ID:** {result.service_token_client_id}"
-            )
-            if (
-                "service_token_client_secret" in result.sealed_in
-                or result.service_token_client_secret is not None
-            ):
-                secret_display = _seal_or_value(
-                    result, "service_token_client_secret",
-                    result.service_token_client_secret,
-                )
-                lines.append(
-                    f"- **SERVICE_TOKEN_CLIENT_SECRET:** {secret_display}"
-                )
-            if result.service_token_policy_id is not None:
-                lines.append(
-                    f"- **SERVICE_TOKEN_POLICY_ID:** {result.service_token_policy_id}"
-                )
+    lines.extend(_render_setup_access_lines(result))
     lines.append("")
     lines.append("## Steps")
     for i, step in enumerate(result.steps, start=1):
