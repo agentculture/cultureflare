@@ -488,18 +488,28 @@ def teardown(
         seal = derive_seal_plan(hostname=ctx.hostname, shushu_arg=None)
     steps: list[StepRecord] = []
 
+    # Access-side cleanup (service token, policies, app) only exists when Zero
+    # Trust is enabled. On a tunnel-only (--no-access) hostname — or any account
+    # without Zero Trust — the /access/* endpoints return CF 9999, so guard on
+    # find_org() (as show() does) and skip straight to DNS + tunnel cleanup.
+    svc = None
+    app = None
+    if find_org(account_id=ctx.account_id) is not None:
+        # 1. Service token (captured before delete for the policy lookup below).
+        svc = find_service_token(
+            account_id=ctx.account_id, name=ctx.names.service_token_name,
+        )
+        # 2. Allow-policy + service-token policy + 3. Access app.
+        app = find_app(account_id=ctx.account_id, hostname=ctx.hostname)
+
     # 1. Service token.
-    svc = find_service_token(
-        account_id=ctx.account_id, name=ctx.names.service_token_name,
-    )
     if svc is not None:
         delete_service_token(account_id=ctx.account_id, token_id=svc["id"])
         steps.append(StepRecord(
             name="service-token", action="deleted", detail=f"id={svc['id']}",
         ))
 
-    # 2. Allow-policy + service-token policy + 3. Access app.
-    app = find_app(account_id=ctx.account_id, hostname=ctx.hostname)
+    # 2 + 3. Allow-policy + service-token policy + Access app.
     if app is not None:
         # Service-token policy: matched by include[].service_token.token_id.
         # ``svc`` was captured BEFORE the token delete in step 1, so we

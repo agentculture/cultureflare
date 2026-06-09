@@ -386,6 +386,7 @@ def _program_teardown_happy_path(
     svc_name = f"{hostname}-svc"
     policy_name = f"{hostname}-allow"
 
+    http_stub.set("GET", f"/accounts/{account_id}/access/organizations", _zt_existing())
     http_stub.set(
         "GET", f"/accounts/{account_id}/access/service_tokens",
         _list_envelope({"id": svc_id, "name": svc_name, "client_id": "CID"}),
@@ -457,12 +458,51 @@ def test_teardown_reverses_setup_skipping_zt_org(http_stub):
 
 
 def test_teardown_keep_tunnel_skips_tunnel_delete(http_stub):
+    http_stub.set("GET", "/accounts/acc-1/access/organizations", _zt_existing())
     http_stub.set("GET", "/accounts/acc-1/access/service_tokens", _empty_list())
     http_stub.set("GET", "/accounts/acc-1/access/apps", _empty_list())
     http_stub.set("GET", "/zones/zid-1/dns_records", _empty_list())
     # tunnel listing is skipped entirely under keep_tunnel
     result = teardown(ctx=_ctx(), keep_tunnel=True)
     assert "tunnel" not in [s.name for s in result.steps]
+
+
+def test_teardown_no_access_skips_access_when_zt_disabled(http_stub):
+    # Bug fix (qodo PR #45): a --no-access hostname has no Access resources;
+    # on an account without Zero Trust, find_org() returns None (CF 9999) and
+    # teardown must skip /access/* entirely while still deleting DNS + tunnel.
+    http_stub.set(
+        "GET", "/accounts/acc-1/access/organizations",
+        CfafiError(
+            code=EXIT_API,
+            message="CloudFlare API 9999: access.api.error.not_enabled: ...",
+            remediation="...",
+            cf_error_code=9999,
+        ),
+    )
+    http_stub.set(
+        "GET", "/zones/zid-1/dns_records",
+        _list_envelope({
+            "id": "rec-1", "type": "CNAME", "name": "irc.culture.dev",
+            "content": "tun-1.cfargotunnel.com", "proxied": True,
+        }),
+    )
+    http_stub.set("DELETE", "/zones/zid-1/dns_records/rec-1",
+                  {"success": True, "errors": [], "messages": [],
+                   "result": {"id": "rec-1"}})
+    http_stub.set(
+        "GET", "/accounts/acc-1/cfd_tunnel",
+        _list_envelope({"id": "tun-1", "name": "irc-culture-dev"}),
+    )
+    http_stub.set("DELETE", "/accounts/acc-1/cfd_tunnel/tun-1",
+                  {"success": True, "errors": [], "messages": [],
+                   "result": {"id": "tun-1"}})
+
+    result = teardown(ctx=_ctx(), keep_tunnel=False)
+    assert [s.name for s in result.steps] == ["dns", "tunnel"]
+    paths = [c[1] for c in http_stub.calls]
+    assert "/accounts/acc-1/access/service_tokens" not in paths
+    assert "/accounts/acc-1/access/apps" not in paths
 
 
 def test_setup_raises_clean_error_when_zt_not_enabled(http_stub):

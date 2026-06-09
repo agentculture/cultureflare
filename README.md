@@ -57,6 +57,14 @@ cultureflare remote-login setup --hostname api.culture.dev --service http://127.
 
 `cfafi <verb>` works identically as a backward-compat alias.
 
+> **Security — `--no-access`:** tunnel-only mode puts **no Cloudflare Access
+> gate** in front of the hostname; the backend at `--service` is reachable by
+> anyone who resolves the name and **must enforce its own authentication**
+> (e.g. an OpenAI-style bearer token). Exposing an unauthenticated service this
+> way is unsafe for anything but local testing. Per-service auth and
+> client-usage docs (a model server's API key, `/v1` endpoints, SDK examples)
+> live with that service, not in this generic CloudFlare tool.
+
 ## Scope (current)
 
 | Resource | Read | Write | Notes |
