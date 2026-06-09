@@ -227,6 +227,66 @@ def test_setup_skips_service_token_step_when_not_requested(http_stub):
     assert "/accounts/acc-1/access/service_tokens" not in paths
 
 
+def test_setup_no_access_creates_tunnel_dns_only(http_stub):
+    # Tunnel-only mode (--no-access): no Zero Trust org check, no Access
+    # app/policy, no service token. Only the tunnel + ingress + DNS endpoints
+    # are programmed — any Access call would hit an unprogrammed stub and fail.
+    http_stub.set("GET", "/accounts/acc-1/cfd_tunnel", _empty_list())
+    http_stub.set("POST", "/accounts/acc-1/cfd_tunnel", {
+        "success": True, "errors": [], "messages": [], "result": {"id": "tun-1"},
+    })
+    http_stub.set(
+        "GET", "/accounts/acc-1/cfd_tunnel/tun-1/token",
+        {"success": True, "errors": [], "messages": [], "result": "TUN-TOK"},
+    )
+    http_stub.set(
+        "GET", "/accounts/acc-1/cfd_tunnel/tun-1/configurations",
+        {"success": True, "errors": [], "messages": [],
+         "result": {"config": {"ingress": []}}},
+    )
+    http_stub.set(
+        "PUT", "/accounts/acc-1/cfd_tunnel/tun-1/configurations",
+        {"success": True, "errors": [], "messages": [],
+         "result": {"config": {"ingress": [
+             {"hostname": "vllm.culture.dev", "service": "http://127.0.0.1:8000"},
+             {"service": "http_status:404"},
+         ]}}},
+    )
+    http_stub.set("GET", "/zones/zid-1/dns_records", _empty_list())
+    http_stub.set("POST", "/zones/zid-1/dns_records",
+                  {"success": True, "errors": [], "messages": [],
+                   "result": {"id": "rec-1"}})
+
+    ctx = Context(
+        account_id="acc-1", zone_id="zid-1", hostname="vllm.culture.dev",
+        names=derive_names(hostname="vllm.culture.dev"),
+        service="http://127.0.0.1:8000",
+    )
+    result = setup(
+        ctx=ctx, emails=[], domains=[],
+        with_service_token=False, session_duration="24h",
+        with_access=False,
+    )
+    assert result.tunnel_id == "tun-1"
+    assert result.tunnel_token == "TUN-TOK"
+    assert result.dns_record_id == "rec-1"
+    assert result.tunnel_service == "http://127.0.0.1:8000"
+    # No Access resources were created.
+    assert result.team_domain is None
+    assert result.access_app_id is None
+    assert result.policy_id is None
+    assert result.policy_emails == []
+    assert result.policy_domains == []
+    assert result.service_token_client_id is None
+    assert result.service_token_policy_id is None
+    assert [s.name for s in result.steps] == [
+        "tunnel", "tunnel-config", "dns", "access",
+    ]
+    assert result.steps[-1].action == "skipped"
+    # Not a single Access API path was touched.
+    assert not any("/access/" in c[1] for c in http_stub.calls)
+
+
 def _program_show_happy_path(
     http_stub,
     *,
@@ -326,6 +386,7 @@ def _program_teardown_happy_path(
     svc_name = f"{hostname}-svc"
     policy_name = f"{hostname}-allow"
 
+    http_stub.set("GET", f"/accounts/{account_id}/access/organizations", _zt_existing())
     http_stub.set(
         "GET", f"/accounts/{account_id}/access/service_tokens",
         _list_envelope({"id": svc_id, "name": svc_name, "client_id": "CID"}),
@@ -397,12 +458,51 @@ def test_teardown_reverses_setup_skipping_zt_org(http_stub):
 
 
 def test_teardown_keep_tunnel_skips_tunnel_delete(http_stub):
+    http_stub.set("GET", "/accounts/acc-1/access/organizations", _zt_existing())
     http_stub.set("GET", "/accounts/acc-1/access/service_tokens", _empty_list())
     http_stub.set("GET", "/accounts/acc-1/access/apps", _empty_list())
     http_stub.set("GET", "/zones/zid-1/dns_records", _empty_list())
     # tunnel listing is skipped entirely under keep_tunnel
     result = teardown(ctx=_ctx(), keep_tunnel=True)
     assert "tunnel" not in [s.name for s in result.steps]
+
+
+def test_teardown_no_access_skips_access_when_zt_disabled(http_stub):
+    # Bug fix (qodo PR #45): a --no-access hostname has no Access resources;
+    # on an account without Zero Trust, find_org() returns None (CF 9999) and
+    # teardown must skip /access/* entirely while still deleting DNS + tunnel.
+    http_stub.set(
+        "GET", "/accounts/acc-1/access/organizations",
+        CfafiError(
+            code=EXIT_API,
+            message="CloudFlare API 9999: access.api.error.not_enabled: ...",
+            remediation="...",
+            cf_error_code=9999,
+        ),
+    )
+    http_stub.set(
+        "GET", "/zones/zid-1/dns_records",
+        _list_envelope({
+            "id": "rec-1", "type": "CNAME", "name": "irc.culture.dev",
+            "content": "tun-1.cfargotunnel.com", "proxied": True,
+        }),
+    )
+    http_stub.set("DELETE", "/zones/zid-1/dns_records/rec-1",
+                  {"success": True, "errors": [], "messages": [],
+                   "result": {"id": "rec-1"}})
+    http_stub.set(
+        "GET", "/accounts/acc-1/cfd_tunnel",
+        _list_envelope({"id": "tun-1", "name": "irc-culture-dev"}),
+    )
+    http_stub.set("DELETE", "/accounts/acc-1/cfd_tunnel/tun-1",
+                  {"success": True, "errors": [], "messages": [],
+                   "result": {"id": "tun-1"}})
+
+    result = teardown(ctx=_ctx(), keep_tunnel=False)
+    assert [s.name for s in result.steps] == ["dns", "tunnel"]
+    paths = [c[1] for c in http_stub.calls]
+    assert "/accounts/acc-1/access/service_tokens" not in paths
+    assert "/accounts/acc-1/access/apps" not in paths
 
 
 def test_setup_raises_clean_error_when_zt_not_enabled(http_stub):

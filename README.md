@@ -49,10 +49,21 @@ cultureflare dns create culture.dev TXT _cfafi-test "hello"
 cultureflare dns create culture.dev TXT _cfafi-test "hello" --apply
 
 # Higher-level orchestration
-cultureflare remote-login setup --hostname irc.culture.dev --allow you@example.com --apply
+cultureflare remote-login setup --hostname irc.culture.dev --service http://localhost:8080 --allow you@example.com --apply
+# Tunnel + DNS only (no Cloudflare Access) — the backend service does its own
+# auth, e.g. an OpenAI-style bearer token in front of a local model server:
+cultureflare remote-login setup --hostname api.culture.dev --service http://127.0.0.1:8000 --no-access --apply
 ```
 
 `cfafi <verb>` works identically as a backward-compat alias.
+
+> **Security — `--no-access`:** tunnel-only mode puts **no Cloudflare Access
+> gate** in front of the hostname; the backend at `--service` is reachable by
+> anyone who resolves the name and **must enforce its own authentication**
+> (e.g. an OpenAI-style bearer token). Exposing an unauthenticated service this
+> way is unsafe for anything but local testing. Per-service auth and
+> client-usage docs (a model server's API key, `/v1` endpoints, SDK examples)
+> live with that service, not in this generic CloudFlare tool.
 
 ## Scope (current)
 
@@ -60,7 +71,7 @@ cultureflare remote-login setup --hostname irc.culture.dev --allow you@example.c
 |---|---|---|---|
 | Zones | ✓ `zones list` | — | All zones in the token's account |
 | DNS records | ✓ via `dns create` lookup | ✓ `dns create` (with `--apply`) | Idempotent; conflict-aware |
-| Cloudflare Access (Zero Trust) | ✓ `remote-login show` | ✓ `remote-login setup` / `teardown` (with `--apply`) | Per-hostname Tunnel + Access app + allow-policy + optional service token |
+| Cloudflare Access (Zero Trust) | ✓ `remote-login show` | ✓ `remote-login setup` / `teardown` (with `--apply`) | Per-hostname Tunnel + Access app + allow-policy + optional service token. `--no-access` provisions Tunnel + DNS only (no Access app) for a backend that authenticates itself |
 | Token verify | ✓ `whoami` | — | Status only (no scope inspection — CF doesn't expose) |
 | Workers scripts / routes | bash skills only | — | Python port pending |
 | Pages projects / deployments | bash skills only | bash `cf-pages-project-create.sh` / `cf-pages-deployments-purge.sh` | Python port pending |
@@ -74,7 +85,8 @@ cultureflare remote-login setup --hostname irc.culture.dev --allow you@example.c
 | `cultureflare whoami` | Verify the configured API token is alive |
 | `cultureflare zones list` | List zones in the token's account |
 | `cultureflare dns create ZONE TYPE NAME CONTENT` | Create a DNS record (dry-run; `--apply` to commit) |
-| `cultureflare remote-login setup --hostname H --allow EMAIL` | Provision the full Tunnel + DNS + Access stack for `H` (dry-run; `--apply` to commit) |
+| `cultureflare remote-login setup --hostname H --service URL --allow EMAIL` | Provision the full Tunnel + DNS + Access stack for `H` (dry-run; `--apply` to commit) |
+| `cultureflare remote-login setup --hostname H --service URL --no-access` | Tunnel + DNS only — no Access app; the backend at `URL` provides its own auth |
 | `cultureflare remote-login show --hostname H` | Inspect what's currently provisioned for `H` |
 | `cultureflare remote-login teardown --hostname H` | Reverse `setup` (dry-run; `--apply` to commit) |
 | `cultureflare learn` | Self-teaching prompt for agents |
@@ -137,7 +149,7 @@ Every mutating verb is **dry-run by default**. Without `--apply`,
 the command:
 
 - Validates inputs (e.g. `--allow user@example.com` is required for
-  `remote-login setup`).
+  `remote-login setup` unless `--no-access` is given).
 - Runs read-side preflight (`whoami`, zone resolution).
 - Prints the plan (or the body it would `POST`) and exits cleanly.
 - Performs no `POST` / `PUT` / `DELETE` against CloudFlare.

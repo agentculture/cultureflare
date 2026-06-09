@@ -4,6 +4,14 @@ All notable changes to this project will be documented here. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-06-09
+
+### Added
+
+- `remote-login setup --no-access` — tunnel-only mode: provision a hostname with Tunnel + ingress + DNS only, skipping the Cloudflare Access app / allow-policy / service-token (and the Zero Trust org check), so a backend that authenticates itself (e.g. an OpenAI-style bearer token in front of a local model server) can be exposed. `--allow`/`--allow-domain`/`--with-service-token` are rejected in this mode; the tunnel token still seals to shushu with `--shushu`. Reuses the existing tunnel/DNS/seal machinery — `setup()` gains a `with_access` flag and `SetupResult`'s Access fields default to None/empty. Resolves #42 (cultureflare side; the model-gear local `model tunnel` runner is tracked separately).
+- `remote-login teardown` now mirrors `show()`'s Zero-Trust guard: when `find_org()` returns None (Zero Trust disabled), it skips the `/access/*` cleanup and proceeds to DNS + tunnel + shushu deletion — so a `--no-access` hostname is removable on accounts without Zero Trust instead of aborting on CF error 9999 (qodo PR #45).
+- README documents the `--no-access` security model: tunnel-only puts no Cloudflare Access gate in front, so the backend **must** enforce its own auth; per-service auth/client docs live with that service, not in this generic tool.
+
 ## [0.10.1] - 2026-06-08
 
 ### Changed

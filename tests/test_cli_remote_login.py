@@ -64,6 +64,39 @@ def test_setup_requires_at_least_one_allow(http_stub, capsys):
     assert rc != 0
 
 
+def test_setup_no_access_dry_run_skips_access_and_needs_no_allow(http_stub, capsys):
+    # --no-access: tunnel + DNS only; --allow is not required and the plan
+    # explicitly skips Cloudflare Access.
+    http_stub.set("GET", "/user/tokens/verify", _verify_alive())
+    http_stub.set("GET", "/zones", _zones_one())
+    rc = main([
+        "remote-login", "setup",
+        "--hostname", "vllm.culture.dev",
+        "--service", "http://127.0.0.1:8000",
+        "--no-access",
+    ])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Dry-run" in out
+    assert "skip Cloudflare Access" in out
+    assert "Zero Trust org" not in out
+    assert "allow-policy" not in out
+    assert [c for c in http_stub.calls if c[0] == "POST"] == []
+
+
+def test_setup_no_access_rejects_allow_flags(http_stub, capsys):
+    rc = main([
+        "remote-login", "setup",
+        "--hostname", "vllm.culture.dev",
+        "--service", "http://127.0.0.1:8000",
+        "--no-access",
+        "--allow", "me@example.com",
+    ])
+    err = capsys.readouterr().err
+    assert rc != 0
+    assert "no-access" in err
+
+
 def test_setup_requires_service(http_stub, capsys):
     # argparse raises SystemExit at parse time; the structured error
     # message still goes to stderr via _CfafiArgumentParser.error().

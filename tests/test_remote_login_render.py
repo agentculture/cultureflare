@@ -56,6 +56,32 @@ def test_render_setup_markdown_omits_service_token_when_absent():
     assert "**SERVICE_TOKEN_CLIENT_SECRET:**" not in md
 
 
+def test_render_setup_markdown_tunnel_only_shows_no_access():
+    # --no-access result: Access fields default to None/empty; the markdown
+    # renders the tunnel-only marker and omits Access / policy / service-token.
+    result = SetupResult(
+        team_domain=None,
+        tunnel_id="tun-1", tunnel_name="vllm-culture-dev",
+        tunnel_token="TUN-TOK",
+        dns_record_id="rec-1",
+        dns_target="tun-1.cfargotunnel.com",
+        tunnel_service="http://127.0.0.1:8000",
+        steps=[
+            StepRecord("tunnel", "ensured", "vllm-culture-dev"),
+            StepRecord("tunnel-config", "ensured", "ingress"),
+            StepRecord("dns", "ensured", "CNAME"),
+            StepRecord("access", "skipped", "tunnel-only"),
+        ],
+    )
+    md = render_setup_markdown(result, hostname="vllm.culture.dev")
+    assert "**ACCESS:**" in md
+    assert "tunnel-only" in md
+    assert "**TUNNEL_INGRESS:**" in md
+    assert "**ACCESS_APP_ID:**" not in md
+    assert "**POLICY:**" not in md
+    assert "**SERVICE_TOKEN_CLIENT_ID:**" not in md
+
+
 def test_render_setup_json_envelope_shape():
     env = render_setup_json(_setup_fixture(), hostname="irc.culture.dev")
     assert env["success"] is True
