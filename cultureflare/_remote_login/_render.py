@@ -30,29 +30,38 @@ def render_setup_markdown(result: SetupResult, *, hostname: str) -> str:
     lines.append(
         f"- **DNS:** CNAME {hostname} → {result.dns_target} (proxied)"
     )
-    lines.append(f"- **ACCESS_APP_ID:** {result.access_app_id}")
-    policy_bits = []
-    if result.policy_emails:
-        policy_bits.append(f"allow [{', '.join(result.policy_emails)}]")
-    if result.policy_domains:
-        policy_bits.append(f"allow-domain [{', '.join(result.policy_domains)}]")
-    lines.append(f"- **POLICY:** {'; '.join(policy_bits)}")
-    if result.service_token_client_id is not None:
+    if result.access_app_id is None:
         lines.append(
-            f"- **SERVICE_TOKEN_CLIENT_ID:** {result.service_token_client_id}"
+            "- **ACCESS:** (none — tunnel-only; the backend service provides "
+            "its own auth)"
         )
-        if (
-            "service_token_client_secret" in result.sealed_in
-            or result.service_token_client_secret is not None
-        ):
+    else:
+        lines.append(f"- **ACCESS_APP_ID:** {result.access_app_id}")
+        policy_bits = []
+        if result.policy_emails:
+            policy_bits.append(f"allow [{', '.join(result.policy_emails)}]")
+        if result.policy_domains:
+            policy_bits.append(f"allow-domain [{', '.join(result.policy_domains)}]")
+        lines.append(f"- **POLICY:** {'; '.join(policy_bits)}")
+        if result.service_token_client_id is not None:
             lines.append(
-                f"- **SERVICE_TOKEN_CLIENT_SECRET:** "
-                f"{_seal_or_value(result, 'service_token_client_secret', result.service_token_client_secret)}"
+                f"- **SERVICE_TOKEN_CLIENT_ID:** {result.service_token_client_id}"
             )
-        if result.service_token_policy_id is not None:
-            lines.append(
-                f"- **SERVICE_TOKEN_POLICY_ID:** {result.service_token_policy_id}"
-            )
+            if (
+                "service_token_client_secret" in result.sealed_in
+                or result.service_token_client_secret is not None
+            ):
+                secret_display = _seal_or_value(
+                    result, "service_token_client_secret",
+                    result.service_token_client_secret,
+                )
+                lines.append(
+                    f"- **SERVICE_TOKEN_CLIENT_SECRET:** {secret_display}"
+                )
+            if result.service_token_policy_id is not None:
+                lines.append(
+                    f"- **SERVICE_TOKEN_POLICY_ID:** {result.service_token_policy_id}"
+                )
     lines.append("")
     lines.append("## Steps")
     for i, step in enumerate(result.steps, start=1):
@@ -102,6 +111,7 @@ def render_setup_dryrun_markdown(
     domains: list[str],
     with_service_token: bool,
     session_duration: str,
+    no_access: bool = False,
     seal_user: str | None = None,
     seal_tunnel_name: str | None = None,
     seal_svc_name: str | None = None,
@@ -117,7 +127,10 @@ def render_setup_dryrun_markdown(
         step += 1
         return step
 
-    lines.append(f"{_step()}. ensure Zero Trust org (existing required for v1)")
+    if not no_access:
+        lines.append(
+            f"{_step()}. ensure Zero Trust org (existing required for v1)"
+        )
     lines.append(f"{_step()}. ensure tunnel `{tunnel_name}`")
     lines.append(
         f"{_step()}. ensure tunnel ingress {hostname} → {service}"
@@ -126,27 +139,35 @@ def render_setup_dryrun_markdown(
         f"{_step()}. ensure DNS CNAME {hostname} → "
         "<tunnel_id>.cfargotunnel.com (proxied)"
     )
-    lines.append(
-        f"{_step()}. ensure Access app `{app_name}` "
-        f"(session_duration={session_duration})"
-    )
-    policy_parts: list[str] = []
-    if emails:
-        policy_parts.append(f"allow [{', '.join(emails)}]")
-    if domains:
-        policy_parts.append(f"allow-domain [{', '.join(domains)}]")
-    lines.append(f"{_step()}. ensure allow-policy ({'; '.join(policy_parts)})")
-    if with_service_token:
-        lines.append(f"{_step()}. ensure service-token (one-shot secret)")
+    if no_access:
         lines.append(
-            f"{_step()}. ensure non_identity service-token policy admitting it"
+            f"{_step()}. skip Cloudflare Access — tunnel-only; the backend "
+            "service handles its own auth"
         )
+    else:
+        lines.append(
+            f"{_step()}. ensure Access app `{app_name}` "
+            f"(session_duration={session_duration})"
+        )
+        policy_parts: list[str] = []
+        if emails:
+            policy_parts.append(f"allow [{', '.join(emails)}]")
+        if domains:
+            policy_parts.append(f"allow-domain [{', '.join(domains)}]")
+        lines.append(
+            f"{_step()}. ensure allow-policy ({'; '.join(policy_parts)})"
+        )
+        if with_service_token:
+            lines.append(f"{_step()}. ensure service-token (one-shot secret)")
+            lines.append(
+                f"{_step()}. ensure non_identity service-token policy admitting it"
+            )
     if seal_tunnel_name is not None:
         u = seal_user or "<self>"
         lines.append(
             f"{_step()}. seal tunnel_token into shushu/{u}/{seal_tunnel_name}"
         )
-        if with_service_token and seal_svc_name is not None:
+        if with_service_token and not no_access and seal_svc_name is not None:
             lines.append(
                 f"{_step()}. seal service-token client_secret into "
                 f"shushu/{u}/{seal_svc_name}"

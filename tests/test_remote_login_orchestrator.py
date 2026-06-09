@@ -227,6 +227,66 @@ def test_setup_skips_service_token_step_when_not_requested(http_stub):
     assert "/accounts/acc-1/access/service_tokens" not in paths
 
 
+def test_setup_no_access_creates_tunnel_dns_only(http_stub):
+    # Tunnel-only mode (--no-access): no Zero Trust org check, no Access
+    # app/policy, no service token. Only the tunnel + ingress + DNS endpoints
+    # are programmed — any Access call would hit an unprogrammed stub and fail.
+    http_stub.set("GET", "/accounts/acc-1/cfd_tunnel", _empty_list())
+    http_stub.set("POST", "/accounts/acc-1/cfd_tunnel", {
+        "success": True, "errors": [], "messages": [], "result": {"id": "tun-1"},
+    })
+    http_stub.set(
+        "GET", "/accounts/acc-1/cfd_tunnel/tun-1/token",
+        {"success": True, "errors": [], "messages": [], "result": "TUN-TOK"},
+    )
+    http_stub.set(
+        "GET", "/accounts/acc-1/cfd_tunnel/tun-1/configurations",
+        {"success": True, "errors": [], "messages": [],
+         "result": {"config": {"ingress": []}}},
+    )
+    http_stub.set(
+        "PUT", "/accounts/acc-1/cfd_tunnel/tun-1/configurations",
+        {"success": True, "errors": [], "messages": [],
+         "result": {"config": {"ingress": [
+             {"hostname": "vllm.culture.dev", "service": "http://127.0.0.1:8000"},
+             {"service": "http_status:404"},
+         ]}}},
+    )
+    http_stub.set("GET", "/zones/zid-1/dns_records", _empty_list())
+    http_stub.set("POST", "/zones/zid-1/dns_records",
+                  {"success": True, "errors": [], "messages": [],
+                   "result": {"id": "rec-1"}})
+
+    ctx = Context(
+        account_id="acc-1", zone_id="zid-1", hostname="vllm.culture.dev",
+        names=derive_names(hostname="vllm.culture.dev"),
+        service="http://127.0.0.1:8000",
+    )
+    result = setup(
+        ctx=ctx, emails=[], domains=[],
+        with_service_token=False, session_duration="24h",
+        with_access=False,
+    )
+    assert result.tunnel_id == "tun-1"
+    assert result.tunnel_token == "TUN-TOK"
+    assert result.dns_record_id == "rec-1"
+    assert result.tunnel_service == "http://127.0.0.1:8000"
+    # No Access resources were created.
+    assert result.team_domain is None
+    assert result.access_app_id is None
+    assert result.policy_id is None
+    assert result.policy_emails == []
+    assert result.policy_domains == []
+    assert result.service_token_client_id is None
+    assert result.service_token_policy_id is None
+    assert [s.name for s in result.steps] == [
+        "tunnel", "tunnel-config", "dns", "access",
+    ]
+    assert result.steps[-1].action == "skipped"
+    # Not a single Access API path was touched.
+    assert not any("/access/" in c[1] for c in http_stub.calls)
+
+
 def _program_show_happy_path(
     http_stub,
     *,

@@ -66,13 +66,16 @@ class SetupResult:
     tunnel_token: str | None
     dns_record_id: str
     dns_target: str
-    access_app_id: str
-    policy_id: str
-    policy_emails: list[str]
-    policy_domains: list[str]
-    service_token_client_id: str | None
-    service_token_client_secret: str | None
-    steps: list[StepRecord]
+    # Access fields are None / empty in tunnel-only (--no-access) mode, where
+    # the upstream service provides its own auth. They are defaulted so a
+    # tunnel-only result is valid; full setup always passes them by keyword.
+    access_app_id: str | None = None
+    policy_id: str | None = None
+    policy_emails: list[str] = field(default_factory=list)
+    policy_domains: list[str] = field(default_factory=list)
+    service_token_client_id: str | None = None
+    service_token_client_secret: str | None = None
+    steps: list[StepRecord] = field(default_factory=list)
     sealed_in: dict[str, str] = field(default_factory=dict)
     # Added in #28: tunnel ingress route + non_identity service-token policy.
     # Defaulted to None so older test fixtures keep compiling.

@@ -4,6 +4,12 @@ All notable changes to this project will be documented here. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-06-09
+
+### Added
+
+- `remote-login setup --no-access` — tunnel-only mode: provision a hostname with Tunnel + ingress + DNS only, skipping the Cloudflare Access app / allow-policy / service-token (and the Zero Trust org check), so a backend that authenticates itself (e.g. an OpenAI-style bearer token in front of a local model server) can be exposed. `--allow`/`--allow-domain`/`--with-service-token` are rejected in this mode; the tunnel token still seals to shushu with `--shushu`. Reuses the existing tunnel/DNS/seal machinery — `setup()` gains a `with_access` flag and `SetupResult`'s Access fields default to None/empty. Resolves #42 (cultureflare side; the model-gear local `model tunnel` runner is tracked separately).
+
 ## [0.10.1] - 2026-06-08
 
 ### Changed

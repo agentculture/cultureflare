@@ -92,6 +92,7 @@ def _emit_setup_dryrun(
             "service": args.service,
             "with_service_token": args.with_service_token,
             "session_duration": args.session_duration,
+            "no_access": args.no_access,
             "emails": list(args.allow),
             "domains": list(args.allow_domain),
         }
@@ -121,6 +122,7 @@ def _emit_setup_dryrun(
                 domains=list(args.allow_domain),
                 with_service_token=args.with_service_token,
                 session_duration=args.session_duration,
+                no_access=args.no_access,
                 seal_user=seal.user if seal.enabled else None,
                 seal_tunnel_name=seal.tunnel_token_target.name if seal.enabled else None,
                 seal_svc_name=seal.service_token_secret_target.name if seal.enabled else None,
@@ -140,6 +142,7 @@ def _emit_setup_apply(
         domains=list(args.allow_domain),
         with_service_token=args.with_service_token,
         session_duration=args.session_duration,
+        with_access=not args.no_access,
         seal=seal,
     )
     if json_mode:
@@ -152,11 +155,31 @@ def _emit_setup_apply(
 
 
 def cmd_setup(args: argparse.Namespace) -> None:
-    if not args.allow and not args.allow_domain:
+    # Normalize the optional flag so hand-built namespaces (and the dry-run /
+    # apply emitters below, which read it off the same args) stay valid.
+    args.no_access = getattr(args, "no_access", False)
+    if args.no_access:
+        if args.allow or args.allow_domain or args.with_service_token:
+            raise CfafiError(
+                code=EXIT_USER_ERROR,
+                message=(
+                    "--no-access cannot be combined with "
+                    "--allow / --allow-domain / --with-service-token"
+                ),
+                remediation=(
+                    "--no-access skips the Cloudflare Access app entirely; "
+                    "drop those flags (the backend service does its own auth)"
+                ),
+            )
+    elif not args.allow and not args.allow_domain:
         raise CfafiError(
             code=EXIT_USER_ERROR,
             message="at least one of --allow / --allow-domain is required",
-            remediation="pass --allow user@example.com or --allow-domain @example.com",
+            remediation=(
+                "pass --allow user@example.com or --allow-domain @example.com "
+                "— or --no-access for a tunnel-only hostname whose backend "
+                "handles its own auth"
+            ),
         )
     args.service = _validate_service_url(args.service)
     check_token_alive()
@@ -235,6 +258,15 @@ def register(sub: argparse._SubParsersAction) -> None:
     s.add_argument(
         "--allow-domain", action="append", default=[],
         help="Email-domain to allow, e.g. @example.com (repeatable).",
+    )
+    s.add_argument(
+        "--no-access", action="store_true",
+        help=(
+            "Tunnel + DNS only: skip the Cloudflare Access app/policy so the "
+            "backend service provides its own auth (e.g. an OpenAI-style "
+            "bearer token). --allow/--allow-domain/--with-service-token are "
+            "not used in this mode."
+        ),
     )
     s.add_argument(
         "--service", required=True,

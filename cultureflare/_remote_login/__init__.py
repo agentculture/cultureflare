@@ -227,6 +227,7 @@ def setup(
     domains: list[str],
     with_service_token: bool,
     session_duration: str,
+    with_access: bool = True,
     seal: SealPlan | None = None,
 ) -> SetupResult:
     """Run the full setup against the live CF API.
@@ -234,6 +235,12 @@ def setup(
     v1 assumes Zero Trust is already enabled on the account; if absent,
     we surface a clear error rather than auto-onboard (onboarding needs
     an auth_domain we don't have at this layer).
+
+    ``with_access=False`` is the tunnel-only mode: create just the tunnel,
+    its ingress route, and the DNS CNAME (plus the optional tunnel-token
+    seal), skipping the Zero Trust org check, the Access app, the
+    allow-policy, and any service token. The upstream service is then
+    responsible for its own auth (e.g. an OpenAI-style bearer token).
     """
     if seal is None:
         seal = derive_seal_plan(hostname=ctx.hostname, shushu_arg=None)
@@ -249,23 +256,27 @@ def setup(
         )
     steps: list[StepRecord] = []
 
-    # 1. Zero Trust org — verified, never created here.
-    org = find_org(account_id=ctx.account_id)
-    if org is None:
-        raise CfafiError(
-            code=EXIT_USER_ERROR,
-            message="Zero Trust is not enabled for this account",
-            remediation=(
-                "enable Zero Trust at "
-                "https://one.dash.cloudflare.com/?to=/:account/access "
-                "(pick a team subdomain), then re-run setup"
-            ),
-        )
-    team_domain = org.get("auth_domain")
-    steps.append(StepRecord(
-        name="zero-trust-org", action="ensured",
-        detail=f"existing auth_domain={team_domain}",
-    ))
+    # 1. Zero Trust org — verified, never created here. Access-only.
+    team_domain: str | None = None
+    if with_access:
+        org = find_org(account_id=ctx.account_id)
+        if org is None:
+            raise CfafiError(
+                code=EXIT_USER_ERROR,
+                message="Zero Trust is not enabled for this account",
+                remediation=(
+                    "enable Zero Trust at "
+                    "https://one.dash.cloudflare.com/?to=/:account/access "
+                    "(pick a team subdomain), then re-run setup — or pass "
+                    "--no-access for a tunnel-only hostname whose backend "
+                    "service handles its own auth"
+                ),
+            )
+        team_domain = org.get("auth_domain")
+        steps.append(StepRecord(
+            name="zero-trust-org", action="ensured",
+            detail=f"existing auth_domain={team_domain}",
+        ))
 
     # 2. Tunnel.
     tunnel_id, tunnel_created = ensure_tunnel(
@@ -304,34 +315,47 @@ def setup(
         detail=f"CNAME {ctx.hostname} → {dns_target}",
     ))
 
-    # 4. Access app.
-    app_id, app_created = ensure_app(
-        account_id=ctx.account_id,
-        hostname=ctx.hostname,
-        app_name=ctx.names.app_name,
-        session_duration=session_duration,
-    )
-    steps.append(StepRecord(
-        name="access-app", action=_action(app_created), detail=f"id={app_id}",
-    ))
+    # Steps 4–6 are Access-only. In tunnel-only mode the public hostname
+    # reaches the backend through the tunnel and the backend authenticates.
+    app_id: str | None = None
+    policy_id: str | None = None
+    svc_cid: str | None = None
+    svc_secret: str | None = None
+    svc_policy_id: str | None = None
+    if with_access:
+        # 4. Access app.
+        app_id, app_created = ensure_app(
+            account_id=ctx.account_id,
+            hostname=ctx.hostname,
+            app_name=ctx.names.app_name,
+            session_duration=session_duration,
+        )
+        steps.append(StepRecord(
+            name="access-app", action=_action(app_created), detail=f"id={app_id}",
+        ))
 
-    # 5. Allow-policy.
-    policy_id, policy_created = ensure_allow_policy(
-        account_id=ctx.account_id, app_id=app_id,
-        name=ctx.names.policy_name,
-        emails=emails, domains=domains,
-    )
-    steps.append(StepRecord(
-        name="allow-policy", action=_action(policy_created),
-        detail=f"id={policy_id}",
-    ))
+        # 5. Allow-policy.
+        policy_id, policy_created = ensure_allow_policy(
+            account_id=ctx.account_id, app_id=app_id,
+            name=ctx.names.policy_name,
+            emails=emails, domains=domains,
+        )
+        steps.append(StepRecord(
+            name="allow-policy", action=_action(policy_created),
+            detail=f"id={policy_id}",
+        ))
 
-    # 6. Service token + non_identity policy (optional, paired).
-    svc_cid, svc_secret, svc_policy_id = _ensure_service_token_step(
-        ctx=ctx, app_id=app_id,
-        with_service_token=with_service_token,
-        steps=steps,
-    )
+        # 6. Service token + non_identity policy (optional, paired).
+        svc_cid, svc_secret, svc_policy_id = _ensure_service_token_step(
+            ctx=ctx, app_id=app_id,
+            with_service_token=with_service_token,
+            steps=steps,
+        )
+    else:
+        steps.append(StepRecord(
+            name="access", action="skipped",
+            detail="tunnel-only (--no-access); backend service handles auth",
+        ))
 
     sealed_in: dict[str, str] = {}
     if seal.enabled:
@@ -356,8 +380,8 @@ def setup(
         dns_target=dns_target,
         access_app_id=app_id,
         policy_id=policy_id,
-        policy_emails=list(emails),
-        policy_domains=list(domains),
+        policy_emails=list(emails) if with_access else [],
+        policy_domains=list(domains) if with_access else [],
         service_token_client_id=svc_cid,
         service_token_client_secret=svc_secret,
         service_token_policy_id=svc_policy_id,
