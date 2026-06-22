@@ -27,6 +27,12 @@
 #   --json            raw CloudFlare response envelope (or simulated body
 #                     in dry-run)
 #
+# A PREVIEW deployment gets a predictable branch-alias URL
+# (<branch-slug>.<project>.pages.dev) reviewers can click and `cicd status`
+# can key on. The dry-run PREDICTS it from the branch slug; --apply reports
+# CF's authoritative `aliases`. Production serves the canonical + custom
+# domains, so it has no branch alias.
+#
 # Only works on git-connected (github / gitlab source) projects. A
 # Direct Upload project has no git source to build from and is refused.
 #
@@ -104,6 +110,12 @@ fi
 
 source_type=$(printf '%s' "$project_json" | jq -r '.result.source.type // ""')
 production_branch=$(printf '%s' "$project_json" | jq -r '.result.production_branch // "main"')
+# Canonical *.pages.dev host — base for the preview branch-alias URL. CF may
+# omit it on some payloads; fall back to <project>.pages.dev to match.
+subdomain=$(printf '%s' "$project_json" | jq -r '.result.subdomain // ""')
+if [[ -z "$subdomain" ]]; then
+  subdomain="$project.pages.dev"
+fi
 
 # Direct Upload projects (source null/absent) have no git to build from.
 if [[ -z "$source_type" ]]; then
@@ -126,6 +138,20 @@ else
   environment=preview
 fi
 
+# Predict the preview branch-alias host. CF builds the subdomain label from
+# the branch: lowercase, non-alphanumeric runs collapse to a single dash,
+# leading/trailing dashes stripped, truncated to 28 chars. Best-effort — the
+# apply path reports CF's authoritative `aliases`. Only previews get one.
+predicted_alias=""
+if [[ "$environment" == "preview" ]]; then
+  alias_label=$(printf '%s' "$effective_branch" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+  alias_label="${alias_label:0:28}"
+  alias_label="${alias_label%-}"
+  predicted_alias="https://$alias_label.$subdomain"
+fi
+
 deploy_path="/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$project_encoded/deployments"
 
 render_summary_kv() {
@@ -144,13 +170,18 @@ if (( apply == 0 )); then
       --arg branch "$effective_branch" \
       --arg environment "$environment" \
       --arg deploy_path "$deploy_path" \
+      --arg predicted_alias "$predicted_alias" \
       '{success: true, errors: [], messages: ["dry-run: no changes applied"],
-        result: {dry_run: true, project: $project, branch: $branch,
-                 environment: $environment, would_post: $deploy_path}}'
+        result: ({dry_run: true, project: $project, branch: $branch,
+                  environment: $environment, would_post: $deploy_path}
+                 + (if $predicted_alias != "" then {predicted_alias: $predicted_alias} else {} end))}'
     exit 0
   fi
   printf '**Dry-run — no changes applied**\n\n'
   render_summary_kv
+  if [[ -n "$predicted_alias" ]]; then
+    printf -- '- **predicted alias:** %s\n' "$predicted_alias"
+  fi
   # shellcheck disable=SC2016  # literal backticks wrap markdown inline code
   printf '\n**would POST** `%s` (branch=%s)\n' "$deploy_path" "$effective_branch"
   exit 0
@@ -170,9 +201,15 @@ short_id=$(printf '%s' "$response" | jq -r '.result.short_id // "—"')
 deploy_url=$(printf '%s' "$response" | jq -r '.result.url // "—"')
 stage_name=$(printf '%s' "$response" | jq -r '.result.latest_stage.name // "—"')
 stage_status=$(printf '%s' "$response" | jq -r '.result.latest_stage.status // "—"')
+# CF's authoritative branch-alias URL(s) — present for previews, usually empty
+# for production. This is the predictable URL to post on a PR.
+aliases=$(printf '%s' "$response" | jq -r '(.result.aliases // []) | join(", ")')
 
 printf '**Deployment triggered**\n\n'
 render_summary_kv
 printf -- '- **deployment:** %s (id=%s)\n' "$short_id" "$deployment_id"
 printf -- '- **stage:** %s/%s\n' "$stage_name" "$stage_status"
 printf -- '- **url:** %s\n' "$deploy_url"
+if [[ -n "$aliases" ]]; then
+  printf -- '- **aliases:** %s\n' "$aliases"
+fi

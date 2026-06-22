@@ -4,6 +4,12 @@ All notable changes to this project will be documented here. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-06-23
+
+### Added
+
+- `pages deployments create` now reports the preview branch-alias URL when `--branch` names a non-production branch: a predicted `<branch>.<project>.pages.dev` host on dry-run, and CloudFlare's authoritative `aliases` on `--apply`. On both surfaces (Python CLI + the `cf-pages-deployment-create.sh` bash twin), so a preview deployment's URL can be posted straight onto a PR for reviewers / picked up by `cicd status`. Production deployments serve the canonical + custom domains, so they show no branch alias.
+
 ## [0.12.0] - 2026-06-22
 
 ### Added

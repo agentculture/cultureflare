@@ -67,7 +67,26 @@ _assert_no_post() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"**branch:** feat/x"* ]]
   [[ "$output" == *"**environment:** preview"* ]]
+  # Preview predicts the branch-alias URL (feat/x → feat-x).
+  [[ "$output" == *"**predicted alias:** https://feat-x.culture-dev.pages.dev"* ]]
   [[ "$output" == *"(branch=feat/x)"* ]]
+  _assert_no_post
+}
+
+@test "cf-pages-deployment-create production dry-run has no predicted alias" {
+  cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
+  run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"predicted alias"* ]]
+  _assert_no_post
+}
+
+@test "cf-pages-deployment-create --json dry-run preview carries predicted_alias" {
+  cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
+  run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev --branch=feat/x --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.result.environment == "preview"'
+  echo "$output" | jq -e '.result.predicted_alias == "https://feat-x.culture-dev.pages.dev"'
   _assert_no_post
 }
 
@@ -114,6 +133,25 @@ _assert_no_post() {
   [[ "$output" == *"**stage:** queued/idle"* ]]
   cf_assert_called '-X	POST'
   cf_assert_called 'branch=main'
+}
+
+@test "cf-pages-deployment-create --apply preview surfaces authoritative aliases" {
+  cf_mock "/pages/projects/culture-dev/deployments" "pages_deployment_create_preview_ok.json"
+  cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
+  run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev --branch=feat/x --apply
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"**environment:** preview"* ]]
+  # CF's authoritative alias from the response, not a prediction.
+  [[ "$output" == *"**aliases:** https://feat-x.culture-dev.pages.dev"* ]]
+  cf_assert_called 'branch=feat/x'
+}
+
+@test "cf-pages-deployment-create --apply production has no alias line" {
+  cf_mock "/pages/projects/culture-dev/deployments" "pages_deployment_create_ok.json"
+  cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
+  run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev --apply
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"**aliases:**"* ]]
 }
 
 @test "cf-pages-deployment-create --apply --json passes response through" {
