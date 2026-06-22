@@ -74,17 +74,18 @@ cultureflare remote-login setup --hostname api.culture.dev --service http://127.
 | Cloudflare Access (Zero Trust) | ✓ `remote-login show` | ✓ `remote-login setup` / `teardown` (with `--apply`) | Per-hostname Tunnel + Access app + allow-policy + optional service token. `--no-access` provisions Tunnel + DNS only (no Access app) for a backend that authenticates itself |
 | Token verify | ✓ `whoami` | — | Status only (no scope inspection — CF doesn't expose) |
 | Workers scripts / routes | bash skills only | — | Python port pending |
-| Pages projects / deployments | bash skills only | bash `cf-pages-project-create.sh` / `cf-pages-deployments-purge.sh` | Python port pending |
+| Pages projects / deployments | bash skills only | ✓ `pages deployments create` (build trigger, `--apply`); bash for projects / domains / purge | Deploy-trigger ported to Python; rest pending |
 | API tokens | — | — | Operator-driven by design (out of scope) |
 | Zero Trust org onboarding | — | — | Dashboard only for now |
 
-## Commands (v0.2.2)
+## Commands (v0.12.0)
 
 | Command | Description |
 |---|---|
 | `cultureflare whoami` | Verify the configured API token is alive |
 | `cultureflare zones list` | List zones in the token's account |
 | `cultureflare dns create ZONE TYPE NAME CONTENT` | Create a DNS record (dry-run; `--apply` to commit) |
+| `cultureflare pages deployments create PROJECT [--branch B]` | Trigger a Pages deployment / build (dry-run; `--apply` to commit) |
 | `cultureflare remote-login setup --hostname H --service URL --allow EMAIL` | Provision the full Tunnel + DNS + Access stack for `H` (dry-run; `--apply` to commit) |
 | `cultureflare remote-login setup --hostname H --service URL --no-access` | Tunnel + DNS only — no Access app; the backend at `URL` provides its own auth |
 | `cultureflare remote-login show --hostname H` | Inspect what's currently provisioned for `H` |

@@ -33,7 +33,7 @@ def test_find_tunnel_returns_none_when_no_match(http_stub):
 def test_find_tunnel_lists_with_is_deleted_false(http_stub):
     http_stub.queue(_list_envelope())
     find_tunnel(account_id="acc-1", name="x")
-    method, path, _, query = http_stub.calls[0]
+    method, path, _, query, _ = http_stub.calls[0]
     assert method == "GET"
     assert path == "/accounts/acc-1/cfd_tunnel"
     assert query.get("is_deleted") == "false"
@@ -76,7 +76,7 @@ def test_delete_tunnel_passes_force_true(http_stub):
         {"success": True, "errors": [], "messages": [], "result": {"id": "tun-b"}},
     )
     delete_tunnel(account_id="acc-1", tunnel_id="tun-b")
-    method, path, _, query = http_stub.calls[0]
+    method, path, _, query, _ = http_stub.calls[0]
     assert method == "DELETE"
     assert path == "/accounts/acc-1/cfd_tunnel/tun-b"
     assert query.get("force") == "true"

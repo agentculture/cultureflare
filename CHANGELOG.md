@@ -4,6 +4,18 @@ All notable changes to this project will be documented here. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-06-22
+
+### Added
+
+- `cultureflare pages deployments create <project> [--branch B]` — trigger a Pages deployment / build for a git-connected project (dry-run by default; `--apply` commits). New `pages` noun in the Python CLI.
+- `cf-pages-deployment-create.sh` bash twin under `cultureflare-write/scripts/`, plus a shared `cf_api_form` multipart helper in `_lib.sh`.
+- `_output.dry_run_envelope()` helper and `_api.http_request(form=...)` multipart support.
+
+### Changed
+
+- Refactored `dns create`s dry-run JSON to share the new `dry_run_envelope()` helper (identical output).
+
 ## [0.11.0] - 2026-06-09
 
 ### Added

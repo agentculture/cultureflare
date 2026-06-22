@@ -188,5 +188,5 @@ def test_delete_policy_calls_delete(http_stub):
     )
     delete_policy(account_id="acc-1", app_id="app-1", policy_id="pol-1")
     assert http_stub.calls == [
-        ("DELETE", "/accounts/acc-1/access/apps/app-1/policies/pol-1", None, {}),
+        ("DELETE", "/accounts/acc-1/access/apps/app-1/policies/pol-1", None, {}, None),
     ]

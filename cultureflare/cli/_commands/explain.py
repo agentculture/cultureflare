@@ -20,6 +20,7 @@ Available paths (v0.1.0):
 - `cultureflare whoami` — verify the configured CloudFlare API token
 - `cultureflare zones list` — list zones in the token's account
 - `cultureflare dns create` — create a DNS record (dry-run by default)
+- `cultureflare pages deployments create` — trigger a Pages build (dry-run by default)
 - `cultureflare learn` — self-teaching prompt
 - `cultureflare explain <path>...` — this lookup
 
@@ -117,6 +118,65 @@ without creating a duplicate.
 - `2` — CLOUDFLARE_API_TOKEN not set
 - `3` — authentication error
 - `4` — upstream CloudFlare API error
+""",
+    ("pages",): """\
+# cultureflare pages
+
+CloudFlare Pages projects and deployments. Current verbs:
+
+- `cultureflare pages deployments create` — trigger a deployment / build (dry-run by default)
+
+More verbs (`projects list/create/delete`, `deployments list/delete/purge`)
+land in future minor releases.
+""",
+    ("pages", "deployments"): """\
+# cultureflare pages deployments
+
+Pages deployment management. Current verbs:
+
+- `cultureflare pages deployments create` — trigger a new deployment (dry-run by default)
+""",
+    ("pages", "deployments", "create"): """\
+# cultureflare pages deployments create
+
+Trigger a new deployment for a git-connected Pages project. **Dry-run by default.**
+
+```
+cultureflare pages deployments create PROJECT [--branch BRANCH] [--apply] [--json]
+```
+
+## Behaviour
+
+Resolves the project (confirming it exists and has a git source), then
+determines the branch to build: `--branch` if given, otherwise the
+project's `production_branch`. A build on the production branch is a
+**production** deployment; any other branch is a **preview**.
+
+Dry-run (no `--apply`): prints the deployments endpoint it would POST to
+and the branch, and exits 0 without mutating anything.
+
+`--apply`: POSTs `multipart/form-data` to
+`/accounts/<id>/pages/projects/<project>/deployments` with the `branch`
+field. CloudFlare clones the repo at that branch's HEAD server-side and
+builds — so this works even when an API-created project never got its
+GitHub webhook (pushes don't auto-deploy in that case).
+
+Direct Upload projects have no git source and are refused.
+
+## Flags
+
+- `--branch BRANCH` — branch to build (default: project production_branch).
+- `--apply` — actually POST. Without it, this is a dry-run.
+- `--json` — emit raw CloudFlare response envelope (or a synthetic
+  `{result: {dry_run: true, ...}}` envelope in dry-run mode).
+
+## Exit codes
+
+- `0` — success (dry-run printed, or deployment triggered with --apply)
+- `1` — invalid project/branch name, or Direct Upload project
+- `2` — CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set
+- `3` — authentication error
+- `4` — upstream CloudFlare API error (incl. project not found)
 """,
     ("learn",): """\
 # cultureflare learn

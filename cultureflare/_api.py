@@ -20,19 +20,45 @@ CF_API_BASE = "https://api.cloudflare.com/client/v4"
 _DEFAULT_PER_PAGE = 50
 
 
+def _encode_multipart(fields: dict[str, Any], boundary: str) -> bytes:
+    """Encode ``fields`` as a ``multipart/form-data`` body.
+
+    Hand-rolled (stdlib has no request-side multipart encoder) and kept
+    minimal: simple text fields only, which is all CloudFlare's
+    create-deployment endpoint needs (an optional ``branch``). Values are
+    stringified; keys are assumed safe (caller-validated branch names).
+    """
+    lines: list[str] = []
+    for key, value in fields.items():
+        lines.append(f"--{boundary}")
+        lines.append(f'Content-Disposition: form-data; name="{key}"')
+        lines.append("")
+        lines.append(str(value))
+    lines.append(f"--{boundary}--")
+    lines.append("")
+    return "\r\n".join(lines).encode("utf-8")
+
+
 def http_request(
     method: str,
     path: str,
     *,
     payload: dict[str, Any] | None = None,
     query: dict[str, Any] | None = None,
+    form: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Perform one CloudFlare API request, returning the parsed JSON envelope.
 
     Raises CfafiError on HTTP 4xx/5xx. 401/403 → EXIT_AUTH, everything
     else → EXIT_API. The CloudFlare error envelope (``.errors[0]``) is
     preserved in ``CfafiError.message`` when present.
+
+    ``payload`` sends a JSON body; ``form`` sends a ``multipart/form-data``
+    body (CF Pages' create-deployment endpoint requires multipart, not
+    JSON). They are mutually exclusive.
     """
+    if payload is not None and form is not None:
+        raise ValueError("http_request: pass payload or form, not both")
     token = require_env("CLOUDFLARE_API_TOKEN")
     url = CF_API_BASE + path
     if query:
@@ -44,7 +70,11 @@ def http_request(
         "Accept": "application/json",
         "User-Agent": f"cultureflare/{__version__} (github.com/agentculture/cultureflare)",
     }
-    if payload is not None:
+    if form is not None:
+        boundary = "----cultureflareFormBoundaryZ9x7Z9x7Z9x7"
+        body = _encode_multipart(form, boundary)
+        headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
+    elif payload is not None:
         body = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
 

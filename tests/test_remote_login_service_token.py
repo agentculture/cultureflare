@@ -85,5 +85,5 @@ def test_delete_service_token_calls_delete(http_stub):
     )
     delete_service_token(account_id="acc-1", token_id="st-b")
     assert http_stub.calls == [
-        ("DELETE", "/accounts/acc-1/access/service_tokens/st-b", None, {}),
+        ("DELETE", "/accounts/acc-1/access/service_tokens/st-b", None, {}, None),
     ]

@@ -7,6 +7,7 @@ import pytest
 
 from cultureflare.cli._errors import EXIT_API, EXIT_USER_ERROR, CfafiError
 from cultureflare.cli._output import (
+    dry_run_envelope,
     emit_error,
     emit_json,
     emit_kv,
@@ -118,3 +119,13 @@ def test_emit_json_writes_envelope():
     buf = io.StringIO()
     emit_json({"success": True, "result": [1, 2, 3]}, stream=buf)
     assert json.loads(buf.getvalue()) == {"success": True, "result": [1, 2, 3]}
+
+
+def test_dry_run_envelope_wraps_result_with_marker():
+    env = dry_run_envelope({"zone_id": "z1", "would_post": {"type": "A"}})
+    assert env["success"] is True
+    assert env["errors"] == []
+    assert env["messages"] == ["dry-run: no changes applied"]
+    assert env["result"]["dry_run"] is True
+    assert env["result"]["zone_id"] == "z1"
+    assert env["result"]["would_post"] == {"type": "A"}

@@ -70,6 +70,7 @@ def _build_parser() -> argparse.ArgumentParser:
     from cultureflare.cli._commands import dns as _dns
     from cultureflare.cli._commands import explain as _explain
     from cultureflare.cli._commands import learn as _learn
+    from cultureflare.cli._commands import pages as _pages
     from cultureflare.cli._commands import remote_login as _remote_login
     from cultureflare.cli._commands import whoami as _whoami
     from cultureflare.cli._commands import zones as _zones
@@ -92,6 +93,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # Noun groups
     _zones.register(sub)
     _dns.register(sub)
+    _pages.register(sub)
     _remote_login.register(sub)
 
     return parser

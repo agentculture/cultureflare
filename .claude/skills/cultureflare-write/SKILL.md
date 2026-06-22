@@ -57,8 +57,9 @@ token**) with these *additional* scopes on top of the read scopes:
 - **Zone · DNS · Edit** (All zones from AgentCulture) —
   required by `cultureflare dns create` and `cf-dns-create.sh`
 - **Account · Cloudflare Pages · Edit** (this account) —
-  required by `cf-pages-project-create.sh`,
-  `cf-pages-domain-add.sh`, `cf-pages-domain-remove.sh`,
+  required by `cultureflare pages deployments create`,
+  `cf-pages-project-create.sh`, `cf-pages-domain-add.sh`,
+  `cf-pages-domain-remove.sh`, `cf-pages-deployment-create.sh`,
   `cf-pages-deployment-delete.sh`, and
   `cf-pages-deployments-purge.sh`. Creating a **GitHub-connected**
   Pages project (no `--direct-upload`) additionally needs the
@@ -116,6 +117,7 @@ Every write operation in this skill follows the same shape:
 | Deploy a Worker | `bash .claude/skills/cultureflare-write/scripts/cf-worker-create.sh ...` |
 | Route a Worker | `bash .claude/skills/cultureflare-write/scripts/cf-workers-route-create.sh ...` |
 | Add a redirect | `bash .claude/skills/cultureflare-write/scripts/cf-redirect-create.sh ...` |
+| Trigger a Pages deployment / build | `cultureflare pages deployments create <project> [--branch B]` *(dry-run; `--apply` to commit; bash: `cf-pages-deployment-create.sh`)* |
 | Delete one Pages deployment | `bash .claude/skills/cultureflare-write/scripts/cf-pages-deployment-delete.sh ...` |
 | Bulk-delete all deployments in a Pages project | `bash .claude/skills/cultureflare-write/scripts/cf-pages-deployments-purge.sh ...` (two-phase, see §3.3) |
 | Delete a DNS record | `bash .claude/skills/cultureflare-write/scripts/cf-dns-delete.sh ...` |
