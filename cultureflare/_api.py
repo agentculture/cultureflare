@@ -10,6 +10,7 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from typing import Any, Iterator, NoReturn
 
 from cultureflare import __version__
@@ -71,7 +72,11 @@ def http_request(
         "User-Agent": f"cultureflare/{__version__} (github.com/agentculture/cultureflare)",
     }
     if form is not None:
-        boundary = "----cultureflareFormBoundaryZ9x7Z9x7Z9x7"
+        # Per-request random boundary: RFC 2046 forbids the delimiter
+        # appearing in any field value, and our values (branch names) share
+        # a charset with a fixed boundary. uuid4 (stdlib) makes a collision
+        # vanishingly improbable — and matches what curl does on the bash side.
+        boundary = "----cultureflareFormBoundary" + uuid.uuid4().hex
         body = _encode_multipart(form, boundary)
         headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
     elif payload is not None:

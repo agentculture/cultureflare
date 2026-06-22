@@ -68,6 +68,17 @@ def test_http_request_rejects_payload_and_form_together():
         http_request("POST", "/x", payload={"a": 1}, form={"b": 2})
 
 
+def test_http_request_multipart_boundary_is_per_request():
+    """Each form POST gets a fresh boundary so a field value can't collide
+    with the delimiter (RFC 2046)."""
+    boundaries = []
+    with patch("cultureflare._api.urllib.request.urlopen", return_value=_ok_resp({"success": True})) as mock:  # noqa: E501
+        for _ in range(2):
+            http_request("POST", "/accounts/a/pages/projects/p/deployments", form={"branch": "main"})
+            boundaries.append(mock.call_args[0][0].get_header("Content-type"))
+    assert boundaries[0] != boundaries[1]
+
+
 def test_http_request_raises_cfafi_auth_error_on_401():
     err_body = json.dumps({"success": False, "errors": [{"code": 10000, "message": "bad token"}]})
     http_err = urllib.error.HTTPError(
