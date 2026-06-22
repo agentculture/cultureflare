@@ -25,12 +25,12 @@ class Stub:
     - ``queue(*items)`` stacks responses returned FIFO across calls
       (used for pagination tests where the same path is hit with
       different ``page=`` values).
-    - ``stub.calls`` is the list of ``(method, path, payload, query)``
+    - ``stub.calls`` is the list of ``(method, path, payload, query, form)``
       tuples recorded in order.
     """
 
     def __init__(self) -> None:
-        self.calls: list[tuple[str, str, dict | None, dict]] = []
+        self.calls: list[tuple[str, str, dict | None, dict, dict | None]] = []
         self._responses: dict[tuple[str, str], object] = {}
         self._queue: list[object] = []
 
@@ -43,9 +43,9 @@ class Stub:
     def queue(self, *items: object) -> None:
         self._queue.extend(items)
 
-    def __call__(self, method: str, path: str, *, payload=None, query=None) -> dict:
+    def __call__(self, method: str, path: str, *, payload=None, query=None, form=None) -> dict:
         q = dict(query or {})
-        self.calls.append((method, path, payload, q))
+        self.calls.append((method, path, payload, q, form))
         if self._queue:
             item = self._queue.pop(0)
         else:

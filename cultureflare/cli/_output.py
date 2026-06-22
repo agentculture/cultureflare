@@ -52,6 +52,25 @@ def emit_json(payload: Any, *, stream: TextIO | None = None) -> None:
     s.write("\n")
 
 
+def dry_run_envelope(result: dict[str, Any]) -> dict[str, Any]:
+    """Synthetic CloudFlare-style envelope for a dry-run (``--apply`` absent).
+
+    Mutation verbs share this shape so their ``--json`` dry-run output
+    mirrors a real CF envelope without a network call: ``success: true``
+    plus a ``result`` carrying a ``dry_run: true`` marker and whatever the
+    caller would have POSTed. Keeps the dry-run JSON identical across
+    ``dns create``, ``pages deployments create``, etc.
+    """
+    # `**result` first so the dry_run marker always wins, even if a caller
+    # passes a `dry_run` key of its own — the marker is the helper's contract.
+    return {
+        "success": True,
+        "errors": [],
+        "messages": ["dry-run: no changes applied"],
+        "result": {**result, "dry_run": True},
+    }
+
+
 def _escape_cell(value: Any) -> str:
     # Pipes break markdown tables; newlines/CRs/tabs collapse to spaces.
     return (

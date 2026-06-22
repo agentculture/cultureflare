@@ -13,7 +13,7 @@ import json as _json
 
 import cultureflare._api as _api
 from cultureflare.cli._errors import EXIT_USER_ERROR, CfafiError
-from cultureflare.cli._output import emit_json, emit_kv, emit_result
+from cultureflare.cli._output import dry_run_envelope, emit_json, emit_kv, emit_result
 
 _SUPPORTED_TYPES = {"A", "AAAA", "CNAME", "TXT", "MX", "NS", "SRV", "CAA"}
 
@@ -98,10 +98,7 @@ def cmd_dns_create(args: argparse.Namespace) -> None:
 
     if not args.apply:
         if json_mode:
-            emit_json({
-                "success": True, "errors": [], "messages": ["dry-run: no changes applied"],
-                "result": {"dry_run": True, "zone_id": zone_id, "would_post": body},
-            })
+            emit_json(dry_run_envelope({"zone_id": zone_id, "would_post": body}))
         else:
             emit_result("**Dry-run — no changes applied**\n", json_mode=False)
             emit_kv([

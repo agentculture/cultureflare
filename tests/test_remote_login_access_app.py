@@ -63,4 +63,4 @@ def test_delete_app_calls_delete_with_id(http_stub):
         {"success": True, "errors": [], "messages": [], "result": {"id": "app-b"}},
     )
     delete_app(account_id="acc-1", app_id="app-b")
-    assert http_stub.calls == [("DELETE", "/accounts/acc-1/access/apps/app-b", None, {})]
+    assert http_stub.calls == [("DELETE", "/accounts/acc-1/access/apps/app-b", None, {}, None)]

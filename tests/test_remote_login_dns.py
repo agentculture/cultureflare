@@ -100,4 +100,4 @@ def test_delete_cname_calls_delete_with_record_id(http_stub):
         {"success": True, "errors": [], "messages": [], "result": {"id": "rec-1"}},
     )
     delete_cname(zone_id="zid-1", record_id="rec-1")
-    assert http_stub.calls == [("DELETE", "/zones/zid-1/dns_records/rec-1", None, {})]
+    assert http_stub.calls == [("DELETE", "/zones/zid-1/dns_records/rec-1", None, {}, None)]

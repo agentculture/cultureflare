@@ -94,6 +94,40 @@ cf_api() {
   return 0
 }
 
+# cf_api_form PATH [CURL_OPTS...]
+# POST CF_API_BASE$PATH as multipart/form-data with the bearer token.
+# Same auth and .success error handling as cf_api, but DELIBERATELY does
+# NOT send `Content-Type: application/json` — endpoints like CF Pages'
+# "create deployment" require multipart, and curl needs to generate the
+# boundary itself. Passing `-H "Content-Type: application/json"` alongside
+# `-F field=value` (as cf_api does) makes curl emit a corrupt
+# `Content-Type: application/json; boundary=…` header, so this is a
+# separate helper rather than a flag on cf_api. Callers pass `-F` form
+# fields via CURL_OPTS; with none, this is an empty multipart POST.
+cf_api_form() {
+  local path="$1"; shift
+  local response url
+  url="$CF_API_BASE$path"
+
+  if ! response=$(curl -sS \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -X POST \
+      "$@" \
+      "$url" 2>&1); then
+    echo "ERROR: CloudFlare API transport failure: $url" >&2
+    printf '%s\n' "$response" >&2
+    exit 1
+  fi
+
+  if ! printf '%s' "$response" | jq -e '.success == true' >/dev/null 2>&1; then
+    echo "ERROR: CloudFlare API request failed: $path" >&2
+    printf '%s' "$response" | jq '.errors // .' >&2 || printf '%s\n' "$response" >&2
+    exit 1
+  fi
+  printf '%s\n' "$response"
+  return 0
+}
+
 # cf_output JSON MODE JQ_TSV_FILTER [HEADER]
 # MODE   : md | json
 # FILTER : jq expression producing tab-separated rows (@tsv)

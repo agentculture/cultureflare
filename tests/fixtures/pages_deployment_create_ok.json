@@ -1,0 +1,24 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "8313565b-e95b-4804-b457-4c1a11b5fd19",
+    "short_id": "8313565b",
+    "project_name": "culture-dev",
+    "environment": "production",
+    "url": "https://8313565b.culture-dev.pages.dev",
+    "created_on": "2026-06-22T17:45:00.000000Z",
+    "latest_stage": {
+      "name": "queued",
+      "status": "idle"
+    },
+    "deployment_trigger": {
+      "type": "ad_hoc",
+      "metadata": {
+        "branch": "main",
+        "commit_hash": "cb3b9e84fa389157e1787602fd364590d1ea26c8"
+      }
+    }
+  }
+}
