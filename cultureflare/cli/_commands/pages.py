@@ -25,37 +25,52 @@ _PROJECT_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
 _BRANCH_RE = re.compile(r"^[A-Za-z0-9._/-]{1,255}$")
 
 
-def cmd_pages_deployments_create(args: argparse.Namespace) -> None:
-    """Trigger a Pages deployment. See cmd_dns_create for the no-explicit-0 rationale."""
-    project = args.project
+def _validate_args(project: str, branch: str | None) -> None:
+    """Raise CfafiError for an invalid project name or branch name."""
     if not _PROJECT_RE.match(project):
         raise CfafiError(
             code=EXIT_USER_ERROR,
             message=f"invalid project name: {project}",
             remediation="project names are lowercase letters, digits, dots, dashes",
         )
-    if args.branch is not None and not _BRANCH_RE.match(args.branch):
+    if branch is not None and not _BRANCH_RE.match(branch):
         raise CfafiError(
             code=EXIT_USER_ERROR,
-            message=f"invalid --branch: {args.branch}",
+            message=f"invalid --branch: {branch}",
             remediation="branch names use letters, digits, and . _ / -",
         )
 
-    account_id = require_env("CLOUDFLARE_ACCOUNT_ID")
-    project_enc = urllib.parse.quote(project, safe="")
 
-    # Project detail: existence check + production_branch default + git-source guard.
+def _resolve_project(account_id: str, project: str, project_enc: str) -> tuple[str, str]:
+    """Fetch project detail; return (source_type, production_branch).
+
+    Raises CfafiError when the project has no git source (Direct Upload).
+    """
     detail = _api.http_request("GET", f"/accounts/{account_id}/pages/projects/{project_enc}")
     result = detail.get("result") or {}
     source_type = (result.get("source") or {}).get("type") or ""
     production_branch = result.get("production_branch") or "main"
-
     if not source_type:
         raise CfafiError(
             code=EXIT_USER_ERROR,
             message=f"project {project} has no git source (Direct Upload)",
-            remediation="Direct Upload projects build via wrangler / the direct-upload API, not a branch",
+            remediation=(
+                "Direct Upload projects build via wrangler / the direct-upload API,"
+                " not a branch"
+            ),
         )
+    return source_type, production_branch
+
+
+def cmd_pages_deployments_create(args: argparse.Namespace) -> None:
+    """Trigger a Pages deployment. See cmd_dns_create for the no-explicit-0 rationale."""
+    _validate_args(args.project, args.branch)
+
+    account_id = require_env("CLOUDFLARE_ACCOUNT_ID")
+    project_enc = urllib.parse.quote(args.project, safe="")
+
+    # Project detail: existence check + production_branch default + git-source guard.
+    source_type, production_branch = _resolve_project(account_id, args.project, project_enc)
 
     branch = args.branch if args.branch is not None else production_branch
     environment = "production" if branch == production_branch else "preview"
@@ -65,13 +80,13 @@ def cmd_pages_deployments_create(args: argparse.Namespace) -> None:
     if not args.apply:
         if json_mode:
             emit_json(dry_run_envelope({
-                "project": project, "branch": branch,
+                "project": args.project, "branch": branch,
                 "environment": environment, "would_post": deploy_path,
             }))
         else:
             emit_result("**Dry-run — no changes applied**\n", json_mode=False)
             emit_kv([
-                ("project", project),
+                ("project", args.project),
                 ("source", source_type),
                 ("branch", branch),
                 ("environment", environment),
@@ -90,7 +105,7 @@ def cmd_pages_deployments_create(args: argparse.Namespace) -> None:
     stage = dep.get("latest_stage") or {}
     emit_result("**Deployment triggered**\n", json_mode=False)
     emit_kv([
-        ("project", project),
+        ("project", args.project),
         ("source", source_type),
         ("branch", branch),
         ("environment", environment),
