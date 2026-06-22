@@ -61,11 +61,13 @@ def dry_run_envelope(result: dict[str, Any]) -> dict[str, Any]:
     caller would have POSTed. Keeps the dry-run JSON identical across
     ``dns create``, ``pages deployments create``, etc.
     """
+    # `**result` first so the dry_run marker always wins, even if a caller
+    # passes a `dry_run` key of its own — the marker is the helper's contract.
     return {
         "success": True,
         "errors": [],
         "messages": ["dry-run: no changes applied"],
-        "result": {"dry_run": True, **result},
+        "result": {**result, "dry_run": True},
     }
 
 
