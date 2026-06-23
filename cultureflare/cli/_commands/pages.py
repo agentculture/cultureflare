@@ -123,29 +123,9 @@ def cmd_pages_deployments_create(args: argparse.Namespace) -> None:
             predicted_alias = f"https://{alias_host}"
 
     if not args.apply:
-        if json_mode:
-            result: dict[str, object] = {
-                "project": args.project, "branch": branch,
-                "environment": environment, "would_post": deploy_path,
-            }
-            if predicted_alias is not None:
-                result["predicted_alias"] = predicted_alias
-            emit_json(dry_run_envelope(result))
-        else:
-            emit_result("**Dry-run — no changes applied**\n", json_mode=False)
-            pairs = [
-                ("project", args.project),
-                ("source", source_type),
-                ("branch", branch),
-                ("environment", environment),
-            ]
-            if predicted_alias is not None:
-                pairs.append(("predicted alias", predicted_alias))
-            emit_kv(pairs)
-            emit_result(
-                f"\n**would POST** `{deploy_path}` (branch={branch})",
-                json_mode=False,
-            )
+        _render_dry_run(
+            args, source_type, branch, environment, deploy_path, predicted_alias, json_mode
+        )
         return
 
     response = _api.http_request("POST", deploy_path, form={"branch": branch})
@@ -153,6 +133,41 @@ def cmd_pages_deployments_create(args: argparse.Namespace) -> None:
         emit_json(response)
         return
     _render_deployment(args, source_type, branch, environment, response)
+
+
+def _render_dry_run(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    args: argparse.Namespace,
+    source_type: str,
+    branch: str,
+    environment: str,
+    deploy_path: str,
+    predicted_alias: str | None,
+    json_mode: bool,
+) -> None:
+    """Render the dry-run preview (no mutation). JSON or markdown."""
+    if json_mode:
+        result: dict[str, object] = {
+            "project": args.project, "branch": branch,
+            "environment": environment, "would_post": deploy_path,
+        }
+        if predicted_alias is not None:
+            result["predicted_alias"] = predicted_alias
+        emit_json(dry_run_envelope(result))
+    else:
+        emit_result("**Dry-run — no changes applied**\n", json_mode=False)
+        pairs = [
+            ("project", args.project),
+            ("source", source_type),
+            ("branch", branch),
+            ("environment", environment),
+        ]
+        if predicted_alias is not None:
+            pairs.append(("predicted alias", predicted_alias))
+        emit_kv(pairs)
+        emit_result(
+            f"\n**would POST** `{deploy_path}` (branch={branch})",
+            json_mode=False,
+        )
 
 
 def _render_deployment(
