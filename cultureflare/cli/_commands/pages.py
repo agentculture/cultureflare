@@ -31,7 +31,7 @@ _BRANCH_RE = re.compile(r"^[A-Za-z0-9._/-]{1,255}$")
 _ALIAS_LABEL_MAXLEN = 28
 
 
-def _branch_alias_host(branch: str, subdomain: str) -> str:
+def _branch_alias_host(branch: str, subdomain: str) -> str | None:
     """Predict the CF Pages preview branch-alias host for ``branch``.
 
     CF builds a preview subdomain label from the branch: lowercase, every
@@ -39,12 +39,19 @@ def _branch_alias_host(branch: str, subdomain: str) -> str:
     dashes stripped, and the label truncated to 28 chars. The alias host is
     ``<label>.<project-subdomain>`` (e.g. ``feat-x.tools-culture-dev.pages.dev``).
 
+    Returns ``None`` when the branch normalizes to an empty label (a
+    punctuation-only branch like ``---`` or ``///``) — there is no valid
+    alias host to predict, and emitting ``.<subdomain>`` would be a malformed
+    URL.
+
     Best-effort — CF is the authority. The apply path reports CF's real
     ``aliases``; this prediction is only for the dry-run preview, and a long
     branch name may truncate differently.
     """
     label = re.sub(r"[^a-z0-9]+", "-", branch.lower()).strip("-")
     label = label[:_ALIAS_LABEL_MAXLEN].rstrip("-")
+    if not label:
+        return None
     return f"{label}.{subdomain}"
 
 
@@ -108,9 +115,12 @@ def cmd_pages_deployments_create(args: argparse.Namespace) -> None:
 
     # A preview deployment (non-production branch) gets a predictable branch
     # alias; production serves the canonical + custom domains, no branch alias.
-    predicted_alias = (
-        f"https://{_branch_alias_host(branch, subdomain)}" if environment == "preview" else None
-    )
+    # A branch that normalizes to an empty label yields no host (None) — skip.
+    predicted_alias: str | None = None
+    if environment == "preview":
+        alias_host = _branch_alias_host(branch, subdomain)
+        if alias_host is not None:
+            predicted_alias = f"https://{alias_host}"
 
     if not args.apply:
         if json_mode:

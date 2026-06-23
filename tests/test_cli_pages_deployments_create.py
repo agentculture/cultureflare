@@ -95,6 +95,30 @@ def test_json_dry_run_preview_includes_predicted_alias(http_stub, capsys):
     )
 
 
+def test_dry_run_punctuation_only_branch_emits_no_predicted_alias(http_stub, capsys):
+    # A branch like '---' normalizes to an empty alias label; we must not
+    # emit "https://.<subdomain>". It is still a preview (branch != main).
+    http_stub.queue(_project_detail())
+    rc = main(["pages", "deployments", "create", "tools-culture-dev", "--branch=---"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "**environment:** preview" in out
+    assert "predicted alias" not in out
+    assert "https://." not in out
+
+
+def test_json_punctuation_only_branch_omits_predicted_alias(http_stub, capsys):
+    http_stub.queue(_project_detail())
+    rc = main(
+        ["pages", "deployments", "create", "tools-culture-dev", "--branch=---", "--json"]
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    payload = json.loads(out)
+    assert payload["result"]["environment"] == "preview"
+    assert "predicted_alias" not in payload["result"]
+
+
 def test_json_dry_run_synthetic_envelope(http_stub, capsys):
     http_stub.queue(_project_detail())
     rc = main(["pages", "deployments", "create", "tools-culture-dev", "--json"])

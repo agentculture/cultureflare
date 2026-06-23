@@ -149,7 +149,12 @@ if [[ "$environment" == "preview" ]]; then
     | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
   alias_label="${alias_label:0:28}"
   alias_label="${alias_label%-}"
-  predicted_alias="https://$alias_label.$subdomain"
+  # A punctuation-only branch (e.g. '---', '///') normalizes to an empty
+  # label and has no valid alias host; leave predicted_alias empty so we
+  # never emit "https://.<subdomain>".
+  if [[ -n "$alias_label" ]]; then
+    predicted_alias="https://$alias_label.$subdomain"
+  fi
 fi
 
 deploy_path="/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$project_encoded/deployments"

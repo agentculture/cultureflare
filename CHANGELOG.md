@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `pages deployments create` now reports the preview branch-alias URL when `--branch` names a non-production branch: a predicted `<branch>.<project>.pages.dev` host on dry-run, and CloudFlare's authoritative `aliases` on `--apply`. On both surfaces (Python CLI + the `cf-pages-deployment-create.sh` bash twin), so a preview deployment's URL can be posted straight onto a PR for reviewers / picked up by `cicd status`. Production deployments serve the canonical + custom domains, so they show no branch alias.
 
+### Fixed
+
+- Preview branch-alias prediction no longer emits a malformed `https://.<subdomain>` URL when the branch normalizes to an empty label (a punctuation-only branch like `---` or `///`): both the Python CLI and the bash twin now omit the predicted alias entirely in that case. Surfaced by qodo on PR #49.
+
 ## [0.12.0] - 2026-06-22
 
 ### Added
