@@ -67,7 +67,47 @@ _assert_no_post() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"**branch:** feat/x"* ]]
   [[ "$output" == *"**environment:** preview"* ]]
+  # Preview predicts the branch-alias URL (feat/x → feat-x).
+  [[ "$output" == *"**predicted alias:** https://feat-x.culture-dev.pages.dev"* ]]
   [[ "$output" == *"(branch=feat/x)"* ]]
+  _assert_no_post
+}
+
+@test "cf-pages-deployment-create production dry-run has no predicted alias" {
+  cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
+  run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"predicted alias"* ]]
+  _assert_no_post
+}
+
+@test "cf-pages-deployment-create --json dry-run preview carries predicted_alias" {
+  cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
+  run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev --branch=feat/x --json
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | jq -e '.result.environment == "preview"'
+  printf '%s\n' "$output" | jq -e '.result.predicted_alias == "https://feat-x.culture-dev.pages.dev"'
+  _assert_no_post
+}
+
+@test "cf-pages-deployment-create preview with a punctuation-only branch emits no alias" {
+  # A branch like '---' normalizes to an empty label; we must not emit
+  # "https://.<subdomain>". Still a preview (branch != production_branch).
+  cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
+  run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev --branch=---
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"**environment:** preview"* ]]
+  [[ "$output" != *"predicted alias"* ]]
+  [[ "$output" != *"https://."* ]]
+  _assert_no_post
+}
+
+@test "cf-pages-deployment-create --json preview punctuation-only branch omits predicted_alias" {
+  cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
+  run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev --branch=--- --json
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | jq -e '.result.environment == "preview"'
+  printf '%s\n' "$output" | jq -e 'has("result") and (.result | has("predicted_alias") | not)'
   _assert_no_post
 }
 
@@ -75,10 +115,10 @@ _assert_no_post() {
   cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
   run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev --json
   [ "$status" -eq 0 ]
-  echo "$output" | jq -e '.success == true'
-  echo "$output" | jq -e '.result.dry_run == true'
-  echo "$output" | jq -e '.result.branch == "main"'
-  echo "$output" | jq -e '.result.environment == "production"'
+  printf '%s\n' "$output" | jq -e '.success == true'
+  printf '%s\n' "$output" | jq -e '.result.dry_run == true'
+  printf '%s\n' "$output" | jq -e '.result.branch == "main"'
+  printf '%s\n' "$output" | jq -e '.result.environment == "production"'
   _assert_no_post
 }
 
@@ -116,11 +156,30 @@ _assert_no_post() {
   cf_assert_called 'branch=main'
 }
 
+@test "cf-pages-deployment-create --apply preview surfaces authoritative aliases" {
+  cf_mock "/pages/projects/culture-dev/deployments" "pages_deployment_create_preview_ok.json"
+  cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
+  run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev --branch=feat/x --apply
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"**environment:** preview"* ]]
+  # CF's authoritative alias from the response, not a prediction.
+  [[ "$output" == *"**aliases:** https://feat-x.culture-dev.pages.dev"* ]]
+  cf_assert_called 'branch=feat/x'
+}
+
+@test "cf-pages-deployment-create --apply production has no alias line" {
+  cf_mock "/pages/projects/culture-dev/deployments" "pages_deployment_create_ok.json"
+  cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
+  run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev --apply
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"**aliases:**"* ]]
+}
+
 @test "cf-pages-deployment-create --apply --json passes response through" {
   cf_mock "/pages/projects/culture-dev/deployments" "pages_deployment_create_ok.json"
   cf_mock "/pages/projects/culture-dev" "pages_project_culture_dev_detail.json"
   run bash "$WRITE_SCRIPTS/cf-pages-deployment-create.sh" culture-dev --apply --json
   [ "$status" -eq 0 ]
-  echo "$output" | jq -e '.success == true'
-  echo "$output" | jq -e '.result.id == "8313565b-e95b-4804-b457-4c1a11b5fd19"'
+  printf '%s\n' "$output" | jq -e '.success == true'
+  printf '%s\n' "$output" | jq -e '.result.id == "8313565b-e95b-4804-b457-4c1a11b5fd19"'
 }

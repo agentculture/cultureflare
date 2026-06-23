@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "9f1a2b3c-1111-2222-3333-444455556666",
+    "short_id": "9f1a2b3c",
+    "project_name": "culture-dev",
+    "environment": "preview",
+    "url": "https://9f1a2b3c.culture-dev.pages.dev",
+    "aliases": ["https://feat-x.culture-dev.pages.dev"],
+    "created_on": "2026-06-23T09:00:00.000000Z",
+    "latest_stage": {
+      "name": "queued",
+      "status": "idle"
+    },
+    "deployment_trigger": {
+      "type": "ad_hoc",
+      "metadata": {
+        "branch": "feat/x",
+        "commit_hash": "0000000000000000000000000000000000000000"
+      }
+    }
+  }
+}
