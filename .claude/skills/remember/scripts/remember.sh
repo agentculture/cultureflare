@@ -20,6 +20,7 @@
 # EIDETIC_MONGO_URI / NEO4J_URI) for a server-backed shared store.
 
 set -euo pipefail
+shopt -s inherit_errexit
 
 # ── resolve the eidetic CLI (installed tool first, then dev checkout) ────────
 EIDETIC=()
@@ -80,7 +81,7 @@ esac
 if [ "$#" -eq 0 ] && [ -t 0 ]; then
     usage >&2
     printf 'hint: pass a JSON record as an argument, or pipe NDJSON on stdin.\n' >&2
-    exit 1
+    exit 2
 fi
 
 resolve_eidetic || exit 2

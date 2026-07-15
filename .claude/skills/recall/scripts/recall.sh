@@ -13,6 +13,7 @@
 # An explicit EIDETIC_DATA_DIR wins and short-circuits to that single dir.
 
 set -euo pipefail
+shopt -s inherit_errexit
 
 # ── resolve the eidetic CLI (installed tool first, then dev checkout) ────────
 EIDETIC=()
@@ -73,7 +74,7 @@ case "${1:-}" in
         # a legitimate search term, so it is intentionally NOT a usage alias.
         printf 'error: no query given.\n' >&2
         printf 'hint: recall.sh "<query>" [--mode ...] [--json]; run recall.sh --help for usage.\n' >&2
-        exit 1
+        exit 2
         ;;
 esac
 
