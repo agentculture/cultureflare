@@ -9,13 +9,17 @@ description: >
   text, full metadata, a relevance `score`, and a freshness `signal`. Recall
   passively reinforces matched records (bumps last_recall + recall_count).
   Shadowed and archived records are excluded by default; use
-  --include-shadowed / --include-archived to retrieve them. The store lives at
-  ~/.eidetic/memory (a home-dir path outside any git worktree); the wrapper
-  defaults queries to this agent's PERSONAL, PRIVATE scope (`--scope cultureflare
-  --visibility private`, suffix read from culture.yaml) — matching where
-  /remember writes — so a no-flag recall returns this agent's own private records
-  plus the shared public pool, and Claude and the colleague backend recall each
-  other's memories because both resolve the same suffix via this skill. Use
+  --include-shadowed / --include-archived to retrieve them. This repo keeps its
+  eidetic memory in-repo and PUBLIC: records resolve to
+  `<repo-root>/.eidetic/memory` — committed and shared with the team and mesh
+  peers. The wrapper defaults queries to this agent's `cultureflare` scope at
+  `--visibility public` (suffix read from culture.yaml), matching where
+  /remember writes — so a plain /recall queries the in-repo public pool with no
+  flag needed, and Claude and the colleague backend recall each other's memories
+  because both resolve the same `cultureflare` scope. Pass `--visibility private`
+  to also read the never-committed `$HOME/.eidetic/memory` store; /recall reads
+  both stores and merges. In-repo routing needs eidetic >= 0.10.0; older CLIs
+  keep records in `$HOME`. Use
   when the user says "recall", "what do we know about X", "search memory",
   "have we seen X before", "look it up in memory", "eidetic recall", or before
   answering from scratch when prior context may already be stored. Pairs with
@@ -31,7 +35,8 @@ surface; the write half is the sibling **/remember** skill.
 
 The point of a *shared* store is that memory is a **team faculty**, not a
 per-agent silo: a record Claude wrote is recallable by the colleague backend
-(and vice versa), because both resolve the same `~/.eidetic/memory` path.
+(and vice versa), because both resolve the same in-repo `cultureflare` scope at
+`<repo-root>/.eidetic/memory` (committed and shared with the team and mesh peers).
 
 ## How to run
 
@@ -81,7 +86,7 @@ Every `recall` hit carries a `signal` field (float in `[0, 1]`). The signal
 blends **multiplicatively** into the lexical/vector score so recently-created
 and frequently-recalled records surface ahead of stale ones. The formula:
 
-```
+```text
 access_bonus = min(0.5, recall_count * 0.05)
 age_factor   = 1 / (1 + days_since_creation * 0.01)
 staleness    = days_since_last_recall * 0.01
@@ -119,14 +124,16 @@ compete on score/signal just like active ones when included.
 - `--case-sensitive` — for `--mode exact`.
 - `--filter KEY=VALUE` — metadata facet filter (repeatable): e.g. `--filter source=docs`.
 - `--scope NAME` / `--visibility public|private` — scope isolation (no private
-  leak). **The wrapper defaults this to the agent's PERSONAL, PRIVATE scope**
-  (`--scope cultureflare --visibility private`, suffix read from `culture.yaml`),
-  matching where `/remember` writes — so a no-flag recall returns this agent's
-  own private records **plus** the shared public pool, while those private records
-  stay invisible to a `default`/other-scope recall. Pass `--scope`/`--visibility`
-  to query elsewhere; a wheel install with no `culture.yaml` falls back to the
-  CLI default `default`/`public`.
-- `--backend files|mongo|neo4j` — default `files` (the shared home-dir store).
+  leak). **The wrapper defaults this to the PUBLIC in-repo scope**
+  (`--scope cultureflare --visibility public`, suffix read from `culture.yaml`),
+  matching where `/remember` writes — so a no-flag recall queries this repo's
+  in-repo public pool at `<repo-root>/.eidetic/memory` (committed, shared with
+  the team and mesh peers). Pass `--visibility private` to also read the
+  never-committed `$HOME/.eidetic/memory` store (recall merges both); pass
+  `--scope` to query a different scope. A wheel install with no `culture.yaml`
+  falls back to the CLI default `default`/`public`; an `eidetic` older than
+  0.10.0 has no in-repo routing and reads from `$HOME`.
+- `--backend files|mongo|neo4j` — default `files` (the in-repo files store).
 - `--include-shadowed` — include shadowed records in results (excluded by default).
 - `--include-archived` — include archived records in results (excluded by default).
 - `--json` — structured list to stdout (use this when an agent parses the result).
@@ -168,11 +175,15 @@ bash .claude/skills/recall/scripts/recall.sh "power" --include-archived --includ
   matches. `approximate` keeps every candidate ranked by raw cosine, so it can
   return low/near-zero scores when the store is small — lower `--top-k` to trim.
   A `--min-score` threshold is a tracked follow-up.
-- **Sharing scope = one OS user.** The default store is `~/.eidetic/memory`, so
-  every agent/process running as the *same* OS user shares it (that is the point —
-  Claude + colleague). It is not isolated between OS users by anything but file
-  permissions; keep genuinely private data in a `--visibility private` scope and
-  treat the host as the trust boundary.
+- **Sharing scope.** The default public store is `<repo-root>/.eidetic/memory` —
+  committed to the repo and shared with the whole team and mesh peers (both the
+  `claude` and `colleague` backends resolve the same `cultureflare` scope, which
+  is the point). The private store, `$HOME/.eidetic/memory` (`--visibility
+  private`), is never committed and is shared only among agents/processes running
+  as the *same* OS user — isolated between OS users by nothing but file
+  permissions. Keep genuinely private data in a `--visibility private` scope, and
+  treat the committed repo (public) and the host (private) as the respective
+  trust boundaries.
 
 ## Provenance
 

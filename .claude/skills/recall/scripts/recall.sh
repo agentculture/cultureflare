@@ -13,6 +13,7 @@
 # An explicit EIDETIC_DATA_DIR wins and short-circuits to that single dir.
 
 set -euo pipefail
+shopt -s inherit_errexit
 
 # ── resolve the eidetic CLI (installed tool first, then dev checkout) ────────
 EIDETIC=()
@@ -73,30 +74,30 @@ case "${1:-}" in
         # a legitimate search term, so it is intentionally NOT a usage alias.
         printf 'error: no query given.\n' >&2
         printf 'hint: recall.sh "<query>" [--mode ...] [--json]; run recall.sh --help for usage.\n' >&2
-        exit 1
+        exit 2
         ;;
 esac
 
-resolve_eidetic || exit 2
+resolve_eidetic || exit 1
 
-# ── default to this agent's PERSONAL, PRIVATE scope (culture.yaml `suffix`) ──
-# Query this agent's OWN personal scope by default, matching where /remember
-# writes, instead of the global `default` scope shared by every project on this
-# host. We read the `suffix` from the nearest culture.yaml (walking up from this
-# script), so the scope follows the repo identity rather than being hard-coded —
-# a downstream cite-don't-import copy adapts to its own suffix, and the colleague
-# backend (running in a worktree of this same repo) resolves the same suffix,
-# keeping the Claude↔colleague shared-memory story intact.
+# ── default to this repo's IN-REPO, PUBLIC scope (culture.yaml `suffix`) ─────
+# This repo keeps its eidetic memory in-repo and PUBLIC: records resolve to
+# <repo-root>/.eidetic/memory — committed and shared with the team and mesh
+# peers. We read the `suffix` from the nearest culture.yaml (walking up from
+# this script), so the scope follows the repo identity rather than being
+# hard-coded — a downstream cite-don't-import copy adapts to its own suffix, and
+# the colleague backend (running in a worktree of this same repo) resolves the
+# same suffix, keeping the Claude↔colleague shared-memory story intact.
 #
-# The personal scope is PRIVATE by default to match /remember: in eidetic's model
-# a private record is served only to a recall in the SAME scope (`can_serve`), so
-# querying with --scope <suffix> --visibility private is what retrieves those
-# isolated records (a public/default recall can't see them). Scope and visibility
-# are paired — the private default applies only when we inject the resolved scope,
-# and only if the caller didn't pass --visibility (so an explicit
-# `--visibility public` still wins). An explicit --scope on the command line takes
-# over steering entirely; a wheel install with no culture.yaml falls back to the
-# plain CLI default (`default`/`public`).
+# The wrappers here default to `--visibility public` (when a culture.yaml
+# `suffix` resolves as `--scope`), so a plain /recall queries the in-repo public
+# pool. Pass --visibility private to also surface this agent's private
+# $HOME/.eidetic/memory notes. /recall reads both stores and merges. Scope and
+# visibility are paired — the public default applies only when we inject the
+# resolved scope, and only if the caller didn't pass --visibility (so an
+# explicit --scope or --visibility on the command line wins). A wheel install
+# with no culture.yaml falls back to the plain CLI default (`default`/`public`).
+# In-repo routing needs eidetic >= 0.10.0; older CLIs keep records in $HOME.
 resolve_scope() {
     local dir suffix=""
     dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

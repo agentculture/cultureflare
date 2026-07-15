@@ -20,6 +20,7 @@
 # EIDETIC_MONGO_URI / NEO4J_URI) for a server-backed shared store.
 
 set -euo pipefail
+shopt -s inherit_errexit
 
 # ── resolve the eidetic CLI (installed tool first, then dev checkout) ────────
 EIDETIC=()
@@ -59,10 +60,12 @@ Usage:
 
 A record needs `id`, `text`, and `type`; `hash` and `metadata` are recommended
 (hash is derived from text when omitted). Upsert is idempotent by id.
-Records default to this agent's PRIVATE personal scope (--scope from the
-culture.yaml suffix); pass --visibility public to contribute to the shared
-public pool. Every flag is forwarded verbatim to `eidetic remember`.
-See `eidetic explain remember`.
+This repo keeps eidetic memory in-repo and PUBLIC: a plain remember (--scope from
+the culture.yaml suffix) defaults to --visibility public and lands in
+<repo-root>/.eidetic/memory — committed and shared with the team and mesh peers.
+Pass --visibility private to keep a record in $HOME/.eidetic/memory (never
+committed). In-repo routing needs eidetic >= 0.10.0. Every flag is forwarded
+verbatim to `eidetic remember`. See `eidetic explain remember`.
 EOF
 }
 
@@ -77,15 +80,16 @@ esac
 # would block forever waiting for NDJSON. Show usage instead of hanging. A piped
 # or redirected stdin (`cat records.ndjson | remember.sh`) is not a TTY and
 # proceeds to the batch path normally.
-if [ "$#" -eq 0 ] && [ -t 0 ]; then
+argc=$#
+if [[ "$argc" -eq 0 ]] && [[ -t 0 ]]; then
     usage >&2
     printf 'hint: pass a JSON record as an argument, or pipe NDJSON on stdin.\n' >&2
-    exit 1
+    exit 2
 fi
 
-resolve_eidetic || exit 2
+resolve_eidetic || exit 1
 
-# ── default to this agent's PERSONAL, PRIVATE scope (culture.yaml `suffix`) ──
+# ── default to this repo's PERSONAL scope + PUBLIC visibility (culture.yaml) ──
 # A record this agent remembers should land in its OWN personal scope, not the
 # global `default` scope shared by every project on this host. We read the
 # `suffix` from the nearest culture.yaml (walking up from this script), so the
@@ -94,14 +98,17 @@ resolve_eidetic || exit 2
 # (running in a worktree of this same repo) resolves the same suffix, keeping
 # the Claude↔colleague shared-memory story intact.
 #
-# The personal scope is PRIVATE by default: in eidetic's model only a private
-# record is isolated to its scope (`can_serve`), so private is what actually
-# keeps these records from leaking to a default/other-scope recall. Scope and
-# visibility are paired — the private default applies only when we inject the
-# resolved scope, and only if the caller didn't pass --visibility (so an
-# explicit `--visibility public` still wins). An explicit --scope on the command
-# line takes over steering entirely; a wheel install with no culture.yaml falls
-# back to the plain CLI default (`default`/`public`).
+# This repo keeps its eidetic memory in-repo and PUBLIC. A plain remember (with
+# the resolved suffix as `--scope`) defaults to `--visibility public` and lands
+# the note in <repo-root>/.eidetic/memory — committed and shared with the team
+# and mesh peers. Keep a record out of the committed store only by passing
+# `--visibility private` (routes to $HOME/.eidetic/memory, never committed).
+# Scope and visibility are paired — the public default applies only when we
+# inject the resolved scope, and only if the caller didn't pass --visibility (so
+# an explicit `--visibility private` still wins). An explicit --scope on the
+# command line takes over steering entirely; a wheel install with no culture.yaml
+# falls back to the plain CLI default (`default`/`public`). In-repo routing needs
+# eidetic >= 0.10.0; older CLIs keep records in $HOME.
 resolve_scope() {
     local dir suffix=""
     dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

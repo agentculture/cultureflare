@@ -43,6 +43,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in `$HOME/.eidetic/memory` instead of in-repo. Propagated by rollout-cli's
   `eidetic-memory` recipe.
 
+### Fixed
+
+- **PR #51 review follow-ups on the `remember` / `recall` wrappers** — aligned
+  both scripts with repo conventions after the qodo review: added `shopt -s
+  inherit_errexit` under `set -euo pipefail` so failures inside `$()` propagate;
+  switched usage-error exits to code `2` and the eidetic-CLI-not-found exit to
+  `1` (0 success / 1 runtime / 2 usage, matching `fetch-issues.sh`); rewrote
+  `remember.sh`'s new TTY guard to `[[ … ]]` with a named `argc` variable (Sonar
+  S7688 / S7679); and reconciled the wrappers' usage text, inline comments, and
+  both `SKILL.md` descriptions with the actual **public-by-default** behavior
+  (they still described a private default, contradicting the code and
+  `CLAUDE.md`). Also fixed an `MD040` bare-fence markdownlint error in
+  `recall/SKILL.md` that was failing the `test-bash` CI job.
+
 ## [0.14.0] - 2026-06-23
 
 ### Added
