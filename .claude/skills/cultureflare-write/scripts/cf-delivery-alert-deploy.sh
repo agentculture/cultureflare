@@ -129,9 +129,10 @@ cf_require_account_id
 
 # build_metadata SECRET_VALUE — emits the upload metadata JSON.
 build_metadata() {
+  local secret_value="$1"
   # shellcheck disable=SC2016  # single-quoted jq filter
   jq -n --arg date "$compat_date" --arg from "$from_addr" \
-        --arg rcpt "$recipients_csv" --arg secret "$1" \
+        --arg rcpt "$recipients_csv" --arg secret "$secret_value" \
     '{main_module: "worker.js", compatibility_date: $date,
       bindings: [
         {type: "send_email", name: "ALERT_EMAIL"},
