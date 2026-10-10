@@ -4,6 +4,14 @@ All notable changes to this project will be documented here. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-10-10
+
+### Added
+
+- delivery-alert Worker template (templates/delivery-alert.js): POST /alert with constant-time bearer secret emails kind+message to configured recipients via the Email Routing send_email binding (relates to #59)
+- cf-delivery-alert-deploy.sh: dry-run-by-default deploy of the Worker with send_email binding and secret (not yet applied; needs owner approval)
+- node --test handler tests (tests/js) and bats tests, wired into CI
+
 ## [0.15.0] - 2026-06-24
 
 ### Added

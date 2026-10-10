@@ -115,6 +115,7 @@ Every write operation in this skill follows the same shape:
 | Add a custom domain to a Pages project | `bash .claude/skills/cultureflare-write/scripts/cf-pages-domain-add.sh ...` |
 | Remove a custom domain from a Pages project | `bash .claude/skills/cultureflare-write/scripts/cf-pages-domain-remove.sh ...` |
 | Deploy a Worker | `bash .claude/skills/cultureflare-write/scripts/cf-worker-create.sh ...` |
+| Deploy the delivery-alert Worker (Email Routing `send_email`) | `bash .claude/skills/cultureflare-write/scripts/cf-delivery-alert-deploy.sh ...` |
 | Route a Worker | `bash .claude/skills/cultureflare-write/scripts/cf-workers-route-create.sh ...` |
 | Add a redirect | `bash .claude/skills/cultureflare-write/scripts/cf-redirect-create.sh ...` |
 | Trigger a Pages deployment / build | `cultureflare pages deployments create <project> [--branch B]` *(dry-run; `--apply` to commit; bash: `cf-pages-deployment-create.sh`)* |
@@ -432,6 +433,43 @@ Flags:
 Idempotency: pre-flight lists the account's Workers scripts and
 refuses with exit 1 if `NAME` already exists. Overwriting an existing
 Worker is a separate (future) `cf-worker-update.sh` responsibility.
+
+### cf-delivery-alert-deploy.sh
+
+Deploys `templates/delivery-alert.js`, a Worker that accepts
+`POST /alert` and emails the posted `kind` + `message` through the
+Cloudflare Email Routing `send_email` binding. Used by irc-lens
+(chat.culture.dev) to tell approved users when its mail provider fails
+(see issue #59). Requires Email Routing on the sender's zone; the
+binding only delivers to **verified destination addresses**.
+
+```sh
+# Dry-run (default): no API call at all, secret redacted.
+ALERT_SHARED_SECRET=... bash .claude/skills/cultureflare-write/scripts/cf-delivery-alert-deploy.sh \
+  delivery-alert --from=alerts@<zone> --recipients=<verified1>,<verified2>
+
+# Apply (needs owner approval): PUT the script, then set workers.dev state.
+... same command ... --apply
+```
+
+Config the Worker reads (set by this script, none stored in the repo):
+`ALERT_SECRET` (secret_text, from the env var named by `--secret-env`,
+default `ALERT_SHARED_SECRET`), `ALERT_RECIPIENTS` (plain_text,
+comma-separated), `ALERT_FROM` (plain_text), `ALERT_EMAIL`
+(`send_email` binding). Recipients come only from this config, never
+from a request.
+
+Worker contract: `Authorization: Bearer <secret>` (constant-time
+compare; 401 and nothing sent otherwise), JSON `{"kind" (<=64),
+"message" (<=2000)}` (400 otherwise), one plain-text mail per
+recipient containing only those two fields; 404 for other paths, 405
+for non-POST, 502 if any send fails. Throttling (once per hour per
+kind) is the caller's job.
+
+Handler tests: `node --test tests/js/*.test.mjs` (also run in CI).
+Note the `send_email` binding metadata shape was written from memory
+of the Workers API and is unverified against a live upload; confirm
+on the first approved deploy.
 
 ### cf-workers-route-create.sh
 
