@@ -53,7 +53,7 @@ slug: `grant-port-devague-0-24-2-refresh` · status: `exported` · from frame: `
 - depends on: t5, t2
 - covers: c4, h22, c20, h11, c7, h6
 - acceptance:
-  - orchestrator tests assert steps named grant-tunnel-token / grant-svc-secret and `sealed_in` values 'grant/<user>/<NAME>'
+  - orchestrator tests assert steps named grant-tunnel-token / grant-svc-secret and `sealed_in` values `grant/USER/NAME`
   - render tests assert Markdown '<sealed: grant/alice/`CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN`>' and dry-run 'seal `tunnel_token` into grant/...' lines
   - grep -n shushu cultureflare/`_remote_login`/`__init__.py` cultureflare/`_remote_login`/`_render.py` returns nothing
 
