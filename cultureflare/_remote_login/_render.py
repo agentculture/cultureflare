@@ -169,12 +169,12 @@ def render_setup_dryrun_markdown(
     if seal_tunnel_name is not None:
         u = seal_user or "<self>"
         lines.append(
-            f"{_step()}. seal tunnel_token into shushu/{u}/{seal_tunnel_name}"
+            f"{_step()}. seal tunnel_token into grant/{u}/{seal_tunnel_name}"
         )
         if with_service_token and not no_access and seal_svc_name is not None:
             lines.append(
                 f"{_step()}. seal service-token client_secret into "
-                f"shushu/{u}/{seal_svc_name}"
+                f"grant/{u}/{seal_svc_name}"
             )
     lines.append("")
     lines.append("Pass --apply to commit.")
@@ -251,7 +251,7 @@ def _row_service_token_policy(svc_policy: dict | None) -> str:
 
 def _row_sealed_status(key: str, status: dict | None) -> str:
     if status is None:
-        return f"  - {key}: ?? (shushu not installed)"
+        return f"  - {key}: ?? (grant not installed)"
     state = "present" if status.get("present") else "absent"
     src = status.get("source")
     tail = f" (source: {src})" if src else ""

@@ -245,23 +245,23 @@ def _sealed_setup_result():
         steps=[],
         sealed_in={
             "tunnel_token":
-                "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN",
+                "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN",
             "service_token_client_secret":
-                "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET",
+                "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET",
         },
     )
 
 
 def test_setup_markdown_renders_sealed_marker_for_tunnel_token():
     md = render_setup_markdown(_sealed_setup_result(), hostname="app.example.com")
-    assert "<sealed: shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN>" in md
+    assert "<sealed: grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN>" in md
     # raw value never appears (we never had one)
     assert "raw-token" not in md
 
 
 def test_setup_markdown_renders_sealed_marker_for_service_token_secret():
     md = render_setup_markdown(_sealed_setup_result(), hostname="app.example.com")
-    assert "<sealed: shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET>" in md
+    assert "<sealed: grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET>" in md
 
 
 def test_setup_json_value_fields_are_null_when_sealed():
@@ -270,9 +270,9 @@ def test_setup_json_value_fields_are_null_when_sealed():
     assert js["result"]["service_token_client_secret"] is None
     assert js["result"]["sealed_in"] == {
         "tunnel_token":
-            "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN",
+            "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN",
         "service_token_client_secret":
-            "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET",
+            "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET",
     }
 
 
@@ -290,12 +290,12 @@ def test_show_markdown_renders_sealed_in_lines():
             "tunnel_token":
                 {"present": True,
                  "name":
-                     "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN",
+                     "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN",
                  "source": "cultureflare/remote-login"},
             "service_token_client_secret":
                 {"present": False,
                  "name":
-                     "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET",
+                     "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET",
                  "source": None},
         },
     )
@@ -328,7 +328,7 @@ def test_setup_markdown_unchanged_when_no_seal():
 # Task 12: dry-run seal-step tests
 # ---------------------------------------------------------------------------
 
-def test_dryrun_markdown_lists_seal_steps_when_shushu_set():
+def test_dryrun_markdown_lists_seal_steps_when_grant_set():
     md = render_setup_dryrun_markdown(
         hostname="app.example.com",
         tunnel_name="app-example-com",
@@ -342,11 +342,11 @@ def test_dryrun_markdown_lists_seal_steps_when_shushu_set():
         seal_svc_name="CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET",
     )
     assert "seal tunnel_token" in md
-    assert "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN" in md
-    assert "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET" in md
+    assert "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN" in md
+    assert "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET" in md
 
 
-def test_dryrun_markdown_omits_seal_when_shushu_unset():
+def test_dryrun_markdown_omits_seal_when_grant_unset():
     md = render_setup_dryrun_markdown(
         hostname="app.example.com",
         tunnel_name="app-example-com",
@@ -475,12 +475,12 @@ def test_show_json_includes_sealed_in_status():
         sealed_in_status={
             "tunnel_token": {
                 "present": True,
-                "name": "shushu/alice/CULTUREFLARE_X_TUNNEL_TOKEN",
+                "name": "grant/alice/CULTUREFLARE_X_TUNNEL_TOKEN",
                 "source": "cultureflare/remote-login",
             },
             "service_token_client_secret": {
                 "present": False,
-                "name": "shushu/alice/CULTUREFLARE_X_SVC_SECRET",
+                "name": "grant/alice/CULTUREFLARE_X_SVC_SECRET",
                 "source": None,
             },
         },
@@ -489,12 +489,12 @@ def test_show_json_includes_sealed_in_status():
     assert js["result"]["sealed_in_status"] == {
         "tunnel_token": {
             "present": True,
-            "name": "shushu/alice/CULTUREFLARE_X_TUNNEL_TOKEN",
+            "name": "grant/alice/CULTUREFLARE_X_TUNNEL_TOKEN",
             "source": "cultureflare/remote-login",
         },
         "service_token_client_secret": {
             "present": False,
-            "name": "shushu/alice/CULTUREFLARE_X_SVC_SECRET",
+            "name": "grant/alice/CULTUREFLARE_X_SVC_SECRET",
             "source": None,
         },
     }
