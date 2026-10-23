@@ -31,6 +31,7 @@ import cultureflare._remote_login._service_token  # noqa: F401
 import cultureflare._remote_login._seal_plan  # noqa: F401
 import cultureflare._remote_login._tunnel  # noqa: F401
 import cultureflare._secrets  # noqa: F401
+import cultureflare._secrets._grant_sink  # noqa: F401
 import cultureflare._secrets._shushu_sink  # noqa: F401
 import cultureflare._secrets._types  # noqa: F401
 import cultureflare.cli  # noqa: F401
