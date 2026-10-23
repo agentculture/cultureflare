@@ -1,7 +1,13 @@
 """Tests for cultureflare._remote_login._tunnel."""
 
+import base64
+import json
+
 import pytest
 
+from tests.conftest import FAKE_TUNNEL_TOKEN
+
+from cultureflare.cli._errors import CfafiError, EXIT_API
 from cultureflare._remote_login._tunnel import (
     delete_tunnel, ensure_tunnel, ensure_tunnel_config,
     find_tunnel, get_tunnel_config, get_tunnel_token,
@@ -62,12 +68,45 @@ def test_ensure_tunnel_posts_when_absent(http_stub):
     assert posts[0][2] == {"name": "irc-culture-dev", "config_src": "cloudflare"}
 
 
-def test_get_tunnel_token_returns_runtime_token(http_stub):
+def _token_stub(http_stub, value):
     http_stub.set(
         "GET", "/accounts/acc-1/cfd_tunnel/tun-b/token",
-        {"success": True, "errors": [], "messages": [], "result": "eyJrIjoiZm9vIn0="},
+        {"success": True, "errors": [], "messages": [], "result": value},
     )
-    assert get_tunnel_token(account_id="acc-1", tunnel_id="tun-b") == "eyJrIjoiZm9vIn0="
+
+
+def test_get_tunnel_token_returns_runtime_token(http_stub):
+    _token_stub(http_stub, FAKE_TUNNEL_TOKEN)
+    assert (
+        get_tunnel_token(account_id="acc-1", tunnel_id="tun-b")
+        == FAKE_TUNNEL_TOKEN
+    )
+
+
+def test_get_tunnel_token_tolerates_missing_padding(http_stub):
+    raw = base64.b64encode(
+        json.dumps({"a": "x", "s": "y", "t": "z"}).encode()
+    ).decode().rstrip("=")
+    _token_stub(http_stub, raw)
+    assert get_tunnel_token(account_id="acc-1", tunnel_id="tun-b") == raw
+
+
+@pytest.mark.parametrize("bad", [
+    "not*base64*SENTINEL-VALUE",
+    base64.b64encode(b"plain text SENTINEL").decode(),
+    base64.b64encode(json.dumps({"a": "SENTINEL", "s": "y"}).encode()).decode(),
+    base64.b64encode(json.dumps(["a", "s", "t"]).encode()).decode(),
+    "",
+])
+def test_get_tunnel_token_rejects_bad_shape_without_leaking(http_stub, bad):
+    _token_stub(http_stub, bad)
+    with pytest.raises(CfafiError) as ei:
+        get_tunnel_token(account_id="acc-1", tunnel_id="tun-b")
+    assert ei.value.code == EXIT_API
+    text = f"{ei.value} {ei.value.message} {ei.value.remediation}"
+    for needle in (bad, "SENTINEL"):
+        if needle:
+            assert needle not in text
 
 
 def test_delete_tunnel_passes_force_true(http_stub):

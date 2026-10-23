@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
+
 import cultureflare._api as _api
+from cultureflare.cli._errors import CfafiError, EXIT_API
 
 
 def find_tunnel(*, account_id: str, name: str) -> dict | None:
@@ -115,11 +120,33 @@ def get_tunnel_token(*, account_id: str, tunnel_id: str) -> str:
         f"/accounts/{account_id}/cfd_tunnel/{tunnel_id}/token",
     )
     token = response.get("result")
-    if not isinstance(token, str):
-        raise RuntimeError(
-            f"unexpected /cfd_tunnel/{tunnel_id}/token response shape"
+    if not _looks_like_connector_token(token):
+        # Never echo the value (or any part of it): it is a credential.
+        raise CfafiError(
+            code=EXIT_API,
+            message=(
+                f"unexpected /cfd_tunnel/{tunnel_id}/token response: "
+                "result is not a base64-encoded JSON connector token "
+                "with keys a/s/t"
+            ),
+            remediation=(
+                "re-run; if it persists, report it as a Cloudflare API "
+                "anomaly (the value is withheld because it is a secret)"
+            ),
         )
     return token
+
+
+def _looks_like_connector_token(token: object) -> bool:
+    """True iff token is base64(JSON object) carrying keys a, s and t."""
+    if not isinstance(token, str) or not token:
+        return False
+    try:
+        padded = token + "=" * (-len(token) % 4)
+        data = json.loads(base64.b64decode(padded, validate=True))
+    except (binascii.Error, ValueError):
+        return False
+    return isinstance(data, dict) and all(k in data for k in ("a", "s", "t"))
 
 
 def delete_tunnel(*, account_id: str, tunnel_id: str) -> None:
