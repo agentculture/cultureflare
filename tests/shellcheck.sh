@@ -6,16 +6,19 @@
 #   2. By bash/sh shebang: extensionless files under tests/bats/stubs/
 #      (e.g. the PATH-injected `curl` mock)
 #
-# Skips vendored dirs (.git, node_modules, .venv). Suppresses SC1091
-# ("not following sourced files") because we intentionally source .env
-# at runtime — the parser is vetted separately in tests/bats/_lib.bats.
+# Skips vendored dirs (.git, node_modules, .venv). Also skips
+# .claude/skills/ask-colleague: vendored verbatim from agentculture/colleague,
+# findings are fixed upstream. Suppresses SC1091 ("not following sourced
+# files") because we intentionally source .env at runtime — the parser is
+# vetted separately in tests/bats/_lib.bats.
 
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 mapfile -t files < <(find . \
-  \( -path ./.git -o -path ./node_modules -o -path ./.venv \) -prune -o \
+  \( -path ./.git -o -path ./node_modules -o -path ./.venv \
+     -o -path ./.claude/skills/ask-colleague \) -prune -o \
   -type f \( -name '*.sh' -o -name '*.bash' \) -print | sort)
 
 if [[ -d tests/bats/stubs ]]; then
