@@ -2,6 +2,8 @@
 
 import pytest
 
+from tests.conftest import FAKE_TUNNEL_TOKEN
+
 from cultureflare._remote_login import setup, show, teardown
 from cultureflare._remote_login._common import (
     Context, derive_names, SetupResult, ShowResult, TeardownResult,
@@ -62,7 +64,7 @@ def _program_setup_happy_path(
     })
     http_stub.set(
         "GET", f"/accounts/{account_id}/cfd_tunnel/{tunnel_id}/token",
-        {"success": True, "errors": [], "messages": [], "result": "TUN-TOK"},
+        {"success": True, "errors": [], "messages": [], "result": FAKE_TUNNEL_TOKEN},
     )
     http_stub.set(
         "GET", f"/accounts/{account_id}/cfd_tunnel/{tunnel_id}/configurations",
@@ -153,7 +155,7 @@ def test_setup_runs_all_six_steps_in_order_when_nothing_exists(http_stub):
     assert isinstance(result, SetupResult)
     assert result.team_domain == "ac.cloudflareaccess.com"
     assert result.tunnel_id == "tun-1"
-    assert result.tunnel_token == "TUN-TOK"
+    assert result.tunnel_token == FAKE_TUNNEL_TOKEN
     assert result.dns_record_id == "rec-1"
     assert result.access_app_id == "app-1"
     assert result.policy_id == "pol-1"
@@ -191,7 +193,7 @@ def test_setup_skips_service_token_step_when_not_requested(http_stub):
     })
     http_stub.set(
         "GET", "/accounts/acc-1/cfd_tunnel/tun-1/token",
-        {"success": True, "errors": [], "messages": [], "result": "TUN-TOK"},
+        {"success": True, "errors": [], "messages": [], "result": FAKE_TUNNEL_TOKEN},
     )
     http_stub.set(
         "GET", "/accounts/acc-1/cfd_tunnel/tun-1/configurations",
@@ -237,7 +239,7 @@ def test_setup_no_access_creates_tunnel_dns_only(http_stub):
     })
     http_stub.set(
         "GET", "/accounts/acc-1/cfd_tunnel/tun-1/token",
-        {"success": True, "errors": [], "messages": [], "result": "TUN-TOK"},
+        {"success": True, "errors": [], "messages": [], "result": FAKE_TUNNEL_TOKEN},
     )
     http_stub.set(
         "GET", "/accounts/acc-1/cfd_tunnel/tun-1/configurations",
@@ -268,7 +270,7 @@ def test_setup_no_access_creates_tunnel_dns_only(http_stub):
         with_access=False,
     )
     assert result.tunnel_id == "tun-1"
-    assert result.tunnel_token == "TUN-TOK"
+    assert result.tunnel_token == FAKE_TUNNEL_TOKEN
     assert result.dns_record_id == "rec-1"
     assert result.tunnel_service == "http://127.0.0.1:8000"
     # No Access resources were created.

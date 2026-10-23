@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 
@@ -10,6 +11,12 @@ import pytest
 from cultureflare import _api
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+# Realistic cloudflared connector token: base64(json{a: account tag,
+# s: tunnel secret, t: tunnel id}). Shared by tunnel + orchestrator tests.
+FAKE_TUNNEL_TOKEN = base64.b64encode(
+    json.dumps({"a": "acct-tag", "s": "c2VjcmV0", "t": "tun-id"}).encode()
+).decode()
 
 
 def load_fixture(name: str) -> dict:
