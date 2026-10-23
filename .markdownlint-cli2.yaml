@@ -28,3 +28,6 @@ ignores:
   # legitimately have no language tag, and re-tagging them all would be
   # noise. These files aren't user-facing CLI docs.
   - "docs/superpowers/**"
+  # ask-colleague is vendored verbatim from agentculture/colleague; its
+  # findings are fixed upstream, not here.
+  - ".claude/skills/ask-colleague/**"

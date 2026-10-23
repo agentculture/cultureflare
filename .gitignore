@@ -218,3 +218,7 @@ __marimo__/
 
 # Per-machine cicd / communicate skill config (committed example only)
 .claude/skills.local.yaml
+
+# devague working state + assign-to-workforce split plans (not committed)
+.devague/
+docs/plans/*-split.md
