@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from urllib.parse import urlparse
 
 from cultureflare._env import require_env
@@ -43,13 +44,47 @@ def _validate_service_url(value: str) -> str:
     return value
 
 
-_SHUSHU_HELP = (
-    "seal tunnel_token + service_token client_secret into shushu "
-    "instead of printing them. Bare --shushu = invoking user; "
-    "--shushu=USER deposits into another user's vault via sudo. "
-    "When set, value fields render as <sealed: shushu/USER/NAME> "
-    "markers."
+_GRANT_HELP = (
+    "seal tunnel_token + service_token client_secret into grant "
+    "instead of printing them. Bare --grant = invoking user; "
+    "--grant=USER deposits into another user's vault via sudo. "
+    "When set, value fields render as <sealed: grant/USER/NAME> "
+    "markers. (--shushu is a deprecated alias for --grant.)"
 )
+
+
+def _add_grant_flags(parser: argparse.ArgumentParser) -> None:
+    """Add ``--grant [USER]`` plus the deprecated, hidden ``--shushu`` alias."""
+    parser.add_argument(
+        "--grant",
+        nargs="?", const="", default=None, metavar="USER",
+        help=_GRANT_HELP,
+    )
+    parser.add_argument(
+        "--shushu",
+        nargs="?", const="", default=None, metavar="USER",
+        help=argparse.SUPPRESS,
+    )
+
+
+def _seal_from_args(args: argparse.Namespace) -> SealPlan:
+    """Resolve ``--grant`` / deprecated ``--shushu`` into a SealPlan.
+
+    The deprecation note goes to stderr only, so ``--json`` stdout stays
+    parseable.
+    """
+    grant = getattr(args, "grant", None)
+    shushu = getattr(args, "shushu", None)
+    if grant is not None and shushu is not None:
+        raise CfafiError(
+            code=EXIT_USER_ERROR,
+            message="--grant and --shushu are mutually exclusive",
+            remediation="use --grant only; --shushu is a deprecated alias",
+        )
+    if shushu is not None:
+        print("warning: --shushu is deprecated; use --grant", file=sys.stderr)
+        grant = shushu
+    return derive_seal_plan(hostname=args.hostname, grant_arg=grant)
 
 
 def _build_context(hostname: str) -> Context:
@@ -100,10 +135,10 @@ def _emit_setup_dryrun(
             u = seal.user or "<self>"
             result_body["sealed_in"] = {
                 "tunnel_token": (
-                    f"shushu/{u}/{seal.tunnel_token_target.name}"
+                    f"grant/{u}/{seal.tunnel_token_target.name}"
                 ),
                 "service_token_client_secret": (
-                    f"shushu/{u}/{seal.service_token_secret_target.name}"
+                    f"grant/{u}/{seal.service_token_secret_target.name}"
                     if args.with_service_token else None
                 ),
             }
@@ -184,7 +219,7 @@ def cmd_setup(args: argparse.Namespace) -> None:
     args.service = _validate_service_url(args.service)
     check_token_alive()
     ctx = _ctx_with_overrides(args)
-    seal = derive_seal_plan(hostname=args.hostname, shushu_arg=args.shushu)
+    seal = _seal_from_args(args)
     if not args.apply:
         _emit_setup_dryrun(args, ctx, seal)
     else:
@@ -195,7 +230,7 @@ def cmd_show(args: argparse.Namespace) -> None:
     json_mode = bool(args.json)
     check_token_alive()
     ctx = _ctx_with_overrides(args)
-    seal = derive_seal_plan(hostname=args.hostname, shushu_arg=args.shushu)
+    seal = _seal_from_args(args)
     result = show(ctx=ctx, seal=seal)
     if json_mode:
         emit_json(render_show_json(result, hostname=args.hostname))
@@ -210,7 +245,7 @@ def cmd_teardown(args: argparse.Namespace) -> None:
     json_mode = bool(args.json)
     check_token_alive()
     ctx = _ctx_with_overrides(args)
-    seal = derive_seal_plan(hostname=args.hostname, shushu_arg=args.shushu)
+    seal = _seal_from_args(args)
 
     if not args.apply:
         msg = (
@@ -290,11 +325,7 @@ def register(sub: argparse._SubParsersAction) -> None:
                    help="Actually mutate (default: dry-run).")
     s.add_argument("--json", action="store_true",
                    help="Emit JSON envelope on stdout.")
-    s.add_argument(
-        "--shushu",
-        nargs="?", const="", default=None, metavar="USER",
-        help=_SHUSHU_HELP,
-    )
+    _add_grant_flags(s)
     s.set_defaults(func=cmd_setup)
 
     sh = verbs.add_parser("show", help="Inspect the current state for a hostname.")
@@ -303,11 +334,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     sh.add_argument("--app-name", default=None)
     sh.add_argument("--service-token-name", default=None)
     sh.add_argument("--json", action="store_true")
-    sh.add_argument(
-        "--shushu",
-        nargs="?", const="", default=None, metavar="USER",
-        help=_SHUSHU_HELP,
-    )
+    _add_grant_flags(sh)
     sh.set_defaults(func=cmd_show)
 
     t = verbs.add_parser("teardown", help="Delete in reverse-dependency order.")
@@ -320,9 +347,5 @@ def register(sub: argparse._SubParsersAction) -> None:
     t.add_argument("--apply", action="store_true",
                    help="Actually mutate (default: dry-run).")
     t.add_argument("--json", action="store_true")
-    t.add_argument(
-        "--shushu",
-        nargs="?", const="", default=None, metavar="USER",
-        help=_SHUSHU_HELP,
-    )
+    _add_grant_flags(t)
     t.set_defaults(func=cmd_teardown)

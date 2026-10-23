@@ -4,6 +4,8 @@ import json
 
 import pytest
 
+from cultureflare.cli._errors import EXIT_USER_ERROR, CfafiError
+
 from cultureflare.cli import main
 
 
@@ -255,3 +257,102 @@ def test_cmd_setup_dryrun_with_shushu_lists_seal_steps(capsys, monkeypatch):
     out = capsys.readouterr().out
     assert "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN" in out
     assert "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET" in out
+
+
+# ---------------------------------------------------------------------------
+# t7: --grant flag with deprecated --shushu alias
+# ---------------------------------------------------------------------------
+
+_VERB_ARGV = {
+    "setup": [
+        "--hostname", "app.example.com", "--service", "http://localhost:8080",
+        "--allow", "x@y",
+    ],
+    "show": ["--hostname", "app.example.com"],
+    "teardown": ["--hostname", "app.example.com"],
+}
+
+_SPELLINGS = [
+    ("--grant", ""),
+    ("--grant=alice", "alice"),
+    ("--shushu", ""),
+    ("--shushu=alice", "alice"),
+]
+
+
+@pytest.mark.parametrize("verb", sorted(_VERB_ARGV))
+@pytest.mark.parametrize("flag,expected_user", _SPELLINGS)
+def test_grant_and_shushu_spellings_resolve_same_seal_user(
+    remote_login_parser, capsys, verb, flag, expected_user,
+):
+    from cultureflare.cli._commands.remote_login import _seal_from_args
+
+    args = remote_login_parser.parse_args(
+        ["remote-login", verb, *_VERB_ARGV[verb], flag],
+    )
+    seal = _seal_from_args(args)
+    assert seal.enabled is True
+    assert (seal.user or "") == expected_user
+    err = capsys.readouterr().err
+    if flag.startswith("--shushu"):
+        assert err.count("--shushu is deprecated; use --grant") == 1
+        assert len(err.strip().splitlines()) == 1
+    else:
+        assert err == ""
+
+
+@pytest.mark.parametrize("verb", sorted(_VERB_ARGV))
+def test_no_grant_flag_disables_sealing(remote_login_parser, capsys, verb):
+    from cultureflare.cli._commands.remote_login import _seal_from_args
+
+    args = remote_login_parser.parse_args(["remote-login", verb, *_VERB_ARGV[verb]])
+    assert _seal_from_args(args).enabled is False
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.parametrize("verb", sorted(_VERB_ARGV))
+def test_grant_and_shushu_together_is_user_error(remote_login_parser, verb):
+    from cultureflare.cli._commands.remote_login import _seal_from_args
+
+    args = remote_login_parser.parse_args(
+        ["remote-login", verb, *_VERB_ARGV[verb], "--grant=a", "--shushu=b"],
+    )
+    with pytest.raises(CfafiError) as exc:
+        _seal_from_args(args)
+    assert exc.value.code == EXIT_USER_ERROR
+    assert "mutually exclusive" in exc.value.message
+
+
+@pytest.mark.parametrize("flag", ["--grant=alice", "--shushu=alice"])
+def test_cmd_setup_dryrun_json_sealed_in_uses_grant_markers(
+    capsys, monkeypatch, flag,
+):
+    import argparse
+    from cultureflare.cli._commands.remote_login import cmd_setup
+
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "tok")
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acc-1")
+    monkeypatch.setattr(
+        "cultureflare.cli._commands.remote_login.check_token_alive",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "cultureflare.cli._commands.remote_login.resolve_zone",
+        lambda hostname: ("zone-1", "example.com"),
+    )
+    from cultureflare.cli import _build_parser
+    ns = _build_parser().parse_args([
+        "remote-login", "setup", *_VERB_ARGV["setup"],
+        "--with-service-token", "--json", flag,
+    ])
+    assert isinstance(ns, argparse.Namespace)
+    cmd_setup(ns)
+    cap = capsys.readouterr()
+    body = json.loads(cap.out)  # stdout must stay pure JSON
+    sealed = body["result"]["sealed_in"]
+    assert sealed["tunnel_token"].startswith("grant/alice/")
+    assert sealed["service_token_client_secret"].startswith("grant/alice/")
+    if flag.startswith("--shushu"):
+        assert cap.err.count("deprecated") == 1
+    else:
+        assert cap.err == ""
