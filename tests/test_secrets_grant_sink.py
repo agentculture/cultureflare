@@ -370,6 +370,11 @@ def test_seal_with_fake_grant_on_path(tmp_path, monkeypatch):
 
     rec = json.loads(log.read_text())
     assert rec["stdin"] == "s3cr3t"
-    assert rec["argv"][0] == "set"
-    assert rec["argv"][-2:] == ["MY_SECRET", "-"]
+    assert rec["argv"] == [
+        "set", "--hidden",
+        "--source", "cultureflare/remote-login",
+        "--purpose", "remote-login app.example.com",
+        "--rotate-howto", "rotate me",
+        "MY_SECRET", "-",
+    ]
     assert "s3cr3t" not in rec["argv"]
