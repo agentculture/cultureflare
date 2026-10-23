@@ -9,7 +9,7 @@ from cultureflare._remote_login._common import (
     Context, derive_names, SetupResult, ShowResult, TeardownResult,
 )
 from cultureflare._remote_login._seal_plan import derive_seal_plan
-from cultureflare._secrets._types import ShushuTarget
+from cultureflare._secrets._types import GrantTarget
 from cultureflare.cli._errors import CfafiError, EXIT_API, EXIT_USER_ERROR
 
 
@@ -573,16 +573,16 @@ def test_setup_with_seal_calls_sink_twice_with_correct_targets(
 ):
     _program_setup_happy_path(http_stub, hostname="app.example.com")
 
-    seal_calls: list[tuple[ShushuTarget, bytes]] = []
+    seal_calls: list[tuple[GrantTarget, bytes]] = []
 
     def fake_seal(target, secret, meta):
         seal_calls.append((target, bytes(secret)))
 
     monkeypatch.setattr(
-        "cultureflare._secrets._shushu_sink.seal", fake_seal
+        "cultureflare._secrets._grant_sink.seal", fake_seal
     )
 
-    plan = derive_seal_plan(hostname="app.example.com", shushu_arg="alice")
+    plan = derive_seal_plan(hostname="app.example.com", grant_arg="alice")
     ctx = _ctx_for("app.example.com")
     result = setup(
         ctx=ctx, emails=["x@y"], domains=[],
@@ -598,9 +598,9 @@ def test_setup_with_seal_calls_sink_twice_with_correct_targets(
     assert result.tunnel_token is None
     assert result.service_token_client_secret is None
     assert result.sealed_in["tunnel_token"] == \
-        "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN"
+        "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN"
     assert result.sealed_in["service_token_client_secret"] == \
-        "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET"
+        "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET"
 
 
 def test_setup_with_seal_partial_failure_raises_rotate_remediation(
@@ -615,15 +615,15 @@ def test_setup_with_seal_partial_failure_raises_rotate_remediation(
         if state["calls"] == 2:
             raise CfafiError(
                 code=EXIT_API,
-                message="shushu store unreadable",
-                remediation="shushu doctor",
+                message="grant store unreadable",
+                remediation="grant doctor",
             )
 
     monkeypatch.setattr(
-        "cultureflare._secrets._shushu_sink.seal", fake_seal
+        "cultureflare._secrets._grant_sink.seal", fake_seal
     )
 
-    plan = derive_seal_plan(hostname="app.example.com", shushu_arg="")
+    plan = derive_seal_plan(hostname="app.example.com", grant_arg="")
     ctx = _ctx_for("app.example.com")
     with pytest.raises(CfafiError) as exc:
         setup(
@@ -637,9 +637,9 @@ def test_setup_with_seal_partial_failure_raises_rotate_remediation(
 
 
 def test_setup_without_seal_returns_secrets_in_clear(http_stub):
-    # Regression guard: --shushu opt-in. Default behaviour unchanged.
+    # Regression guard: --grant opt-in. Default behaviour unchanged.
     _program_setup_happy_path(http_stub, hostname="app.example.com")
-    plan = derive_seal_plan(hostname="app.example.com", shushu_arg=None)
+    plan = derive_seal_plan(hostname="app.example.com", grant_arg=None)
     ctx = _ctx_for("app.example.com")
     result = setup(
         ctx=ctx, emails=["x@y"], domains=[],
@@ -655,7 +655,7 @@ def test_setup_without_seal_returns_secrets_in_clear(http_stub):
 def test_show_with_seal_probes_both_targets(http_stub, monkeypatch):
     _program_show_happy_path(http_stub, hostname="app.example.com")
 
-    probed: list[ShushuTarget] = []
+    probed: list[GrantTarget] = []
 
     def fake_probe(target):
         probed.append(target)
@@ -665,10 +665,10 @@ def test_show_with_seal_probes_both_targets(http_stub, monkeypatch):
         return None
 
     monkeypatch.setattr(
-        "cultureflare._secrets._shushu_sink.probe", fake_probe
+        "cultureflare._secrets._grant_sink.probe", fake_probe
     )
 
-    plan = derive_seal_plan(hostname="app.example.com", shushu_arg="alice")
+    plan = derive_seal_plan(hostname="app.example.com", grant_arg="alice")
     ctx = _ctx_for("app.example.com")
     result = show(ctx=ctx, seal=plan)
 
@@ -684,30 +684,30 @@ def test_show_without_seal_does_not_probe(http_stub, monkeypatch):
         raise AssertionError("must not probe when seal disabled")
 
     monkeypatch.setattr(
-        "cultureflare._secrets._shushu_sink.probe", fake_probe
+        "cultureflare._secrets._grant_sink.probe", fake_probe
     )
 
-    plan = derive_seal_plan(hostname="app.example.com", shushu_arg=None)
+    plan = derive_seal_plan(hostname="app.example.com", grant_arg=None)
     ctx = _ctx_for("app.example.com")
     result = show(ctx=ctx, seal=plan)
     assert result.sealed_in_status == {}
 
 
-def test_show_with_seal_handles_shushu_missing(http_stub, monkeypatch):
+def test_show_with_seal_handles_grant_missing(http_stub, monkeypatch):
     _program_show_happy_path(http_stub, hostname="app.example.com")
 
     def fake_probe(target):
         raise CfafiError(
             code=EXIT_USER_ERROR,
-            message="shushu binary not found",
-            remediation="uv tool install shushu",
+            message="grant binary not found",
+            remediation="uv tool install grant",
         )
 
     monkeypatch.setattr(
-        "cultureflare._secrets._shushu_sink.probe", fake_probe
+        "cultureflare._secrets._grant_sink.probe", fake_probe
     )
 
-    plan = derive_seal_plan(hostname="app.example.com", shushu_arg="")
+    plan = derive_seal_plan(hostname="app.example.com", grant_arg="")
     ctx = _ctx_for("app.example.com")
     result = show(ctx=ctx, seal=plan)
     # show is non-fatal: render None for each entry
@@ -718,24 +718,24 @@ def test_show_with_seal_handles_shushu_missing(http_stub, monkeypatch):
 def test_teardown_with_seal_deletes_both_entries(http_stub, monkeypatch):
     _program_teardown_happy_path(http_stub, hostname="app.example.com")
 
-    deleted: list[ShushuTarget] = []
+    deleted: list[GrantTarget] = []
 
     def fake_delete(target):
         deleted.append(target)
         return True
 
     monkeypatch.setattr(
-        "cultureflare._secrets._shushu_sink.delete", fake_delete
+        "cultureflare._secrets._grant_sink.delete", fake_delete
     )
 
-    plan = derive_seal_plan(hostname="app.example.com", shushu_arg="alice")
+    plan = derive_seal_plan(hostname="app.example.com", grant_arg="alice")
     ctx = _ctx_for("app.example.com")
     result = teardown(ctx=ctx, keep_tunnel=False, seal=plan)
 
     names = [t.name for t in deleted]
     assert "CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN" in names
     assert "CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET" in names
-    seal_steps = [s for s in result.steps if "shushu" in s.name]
+    seal_steps = [s for s in result.steps if "grant" in s.name]
     assert len(seal_steps) == 2
 
 
@@ -748,23 +748,23 @@ def test_teardown_with_seal_records_failed_delete_but_does_not_abort(
         if target.name.endswith("_SVC_SECRET"):
             raise CfafiError(
                 code=EXIT_API,
-                message="shushu store unreadable",
-                remediation="shushu doctor",
+                message="grant store unreadable",
+                remediation="grant doctor",
             )
         return True
 
     monkeypatch.setattr(
-        "cultureflare._secrets._shushu_sink.delete", fake_delete
+        "cultureflare._secrets._grant_sink.delete", fake_delete
     )
 
-    plan = derive_seal_plan(hostname="app.example.com", shushu_arg="")
+    plan = derive_seal_plan(hostname="app.example.com", grant_arg="")
     ctx = _ctx_for("app.example.com")
     result = teardown(ctx=ctx, keep_tunnel=False, seal=plan)
 
-    actions = {s.name: s.action for s in result.steps if "shushu" in s.name}
+    actions = {s.name: s.action for s in result.steps if "grant" in s.name}
     assert actions == {
-        "shushu-tunnel-token": "deleted",
-        "shushu-svc-secret": "delete-failed",
+        "grant-tunnel-token": "deleted",
+        "grant-svc-secret": "delete-failed",
     }
 
 
@@ -775,16 +775,16 @@ def test_teardown_without_seal_does_not_call_delete(http_stub, monkeypatch):
         raise AssertionError("must not delete when seal disabled")
 
     monkeypatch.setattr(
-        "cultureflare._secrets._shushu_sink.delete", fake_delete
+        "cultureflare._secrets._grant_sink.delete", fake_delete
     )
 
-    plan = derive_seal_plan(hostname="app.example.com", shushu_arg=None)
+    plan = derive_seal_plan(hostname="app.example.com", grant_arg=None)
     ctx = _ctx_for("app.example.com")
     teardown(ctx=ctx, keep_tunnel=False, seal=plan)
 
 
 def test_show_with_seal_probes_even_when_zt_disabled(http_stub, monkeypatch):
-    """Bug fix: shushu probe must run even when find_org returns None."""
+    """Bug fix: grant probe must run even when find_org returns None."""
     from cultureflare.cli._errors import EXIT_API, CfafiError
 
     # Program /access/organizations to return 9999 (Zero Trust not enabled).
@@ -809,16 +809,16 @@ def test_show_with_seal_probes_even_when_zt_disabled(http_stub, monkeypatch):
                 "source": "cultureflare/remote-login"}
 
     monkeypatch.setattr(
-        "cultureflare._secrets._shushu_sink.probe", fake_probe
+        "cultureflare._secrets._grant_sink.probe", fake_probe
     )
 
-    plan = derive_seal_plan(hostname="app.example.com", shushu_arg="alice")
+    plan = derive_seal_plan(hostname="app.example.com", grant_arg="alice")
     ctx = _ctx_for("app.example.com")
     result = show(ctx=ctx, seal=plan)
 
     # ZT-side state is empty.
     assert result.team_domain is None
-    # But shushu probe DID run for both targets.
+    # But grant probe DID run for both targets.
     assert len(probed) == 2
     assert result.sealed_in_status["tunnel_token"]["present"] is True
     assert result.sealed_in_status["service_token_client_secret"]["present"] is True
