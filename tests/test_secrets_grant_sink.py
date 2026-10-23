@@ -378,3 +378,44 @@ def test_seal_with_fake_grant_on_path(tmp_path, monkeypatch):
         "MY_SECRET", "-",
     ]
     assert "s3cr3t" not in rec["argv"]
+
+
+# --- review #61 findings 7 + 9 ------------------------------------------
+
+def test_exit_64_remediation_uses_sudo_and_user_for_cross_user(monkeypatch):
+    monkeypatch.setattr(subprocess, "run", _FakeRun(returncode=64, stderr=b"exists"))
+    with pytest.raises(CfafiError) as ei:
+        seal(GrantTarget(user="alice", name="MY_SECRET"), b"x", _META)
+    rem = ei.value.remediation
+    assert "sudo -n grant show --user alice MY_SECRET" in rem
+    assert "sudo -n grant delete --user alice MY_SECRET" in rem
+
+
+def test_exit_64_remediation_plain_for_self(monkeypatch):
+    monkeypatch.setattr(subprocess, "run", _FakeRun(returncode=64, stderr=b"exists"))
+    with pytest.raises(CfafiError) as ei:
+        seal(GrantTarget(user=None, name="MY_SECRET"), b"x", _META)
+    assert "`grant show MY_SECRET`" in ei.value.remediation
+    assert "sudo" not in ei.value.remediation
+
+
+def test_missing_binary_raises_typed_not_found(monkeypatch):
+    from cultureflare._secrets._grant_sink import GrantNotFoundError
+
+    def boom(argv, **kw):
+        raise FileNotFoundError(argv[0])
+
+    monkeypatch.setattr(subprocess, "run", boom)
+    with pytest.raises(GrantNotFoundError):
+        seal(GrantTarget(user=None, name="MY_SECRET"), b"x", _META)
+
+
+def test_sudo_command_not_found_is_typed_not_found(monkeypatch):
+    from cultureflare._secrets._grant_sink import GrantNotFoundError, probe
+
+    monkeypatch.setattr(subprocess, "run", _FakeRun(
+        returncode=1, stderr=b"sudo: grant: command not found\n",
+    ))
+    with pytest.raises(GrantNotFoundError) as ei:
+        probe(GrantTarget(user="alice", name="MY_SECRET"))
+    assert "secure_path" in ei.value.remediation

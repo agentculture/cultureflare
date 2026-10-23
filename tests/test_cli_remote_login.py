@@ -356,3 +356,29 @@ def test_cmd_setup_dryrun_json_sealed_in_uses_grant_markers(
         assert cap.err.count("deprecated") == 1
     else:
         assert cap.err == ""
+
+
+# --- review #61 finding 2: only setup validates grant names -------------
+
+@pytest.mark.parametrize("verb,validates", [
+    ("setup", True), ("show", False), ("teardown", False),
+])
+def test_only_setup_validates_grant_names(http_stub, monkeypatch, verb, validates):
+    from cultureflare.cli._commands import remote_login as rl
+
+    http_stub.set("GET", "/user/tokens/verify", _verify_alive())
+    http_stub.set("GET", "/zones", _zones_one())
+    seen = {}
+
+    def fake_derive(**kwargs):
+        seen.update(kwargs)
+        raise CfafiError(code=EXIT_USER_ERROR, message="stop-here")
+
+    monkeypatch.setattr(rl, "derive_seal_plan", fake_derive)
+    argv = [
+        "remote-login", verb, "--hostname", "irc.culture.dev", "--grant",
+    ]
+    if verb == "setup":
+        argv += ["--service", "http://localhost:8080", "--allow", "x@y"]
+    assert main(argv) == EXIT_USER_ERROR
+    assert seen["validate_names"] is validates

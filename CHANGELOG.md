@@ -8,9 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `remote-login setup/show/teardown --grant[=USER]` seals the tunnel token and service-token secret into `grant` (the renamed `shushu`); `show` renders `<sealed: grant/USER/NAME>` markers (refs #55). `--shushu[=USER]` stays as a hidden, deprecated alias that prints one stderr warning; passing both is a user error.
-- Seal-plan name guard: with sealing enabled, a derived secret name that grant would refuse (`^[A-Z_][A-Z0-9_]{0,63}$` — e.g. hostnames longer than 38 chars) fails up front with a user error instead of reaching grant, where exit 64 is indistinguishable from 'absent'. Non-sealed runs are unaffected.
-- Tunnel-token shape guard: `get_tunnel_token` raises (EXIT_API) unless the token base64-decodes to JSON with keys `a`/`s`/`t`, never echoing the value. The 51-byte token in #55 does not reproduce (the code path is unchanged since the rename and returns a valid 240-byte connector token live), so this turns any recurrence into a loud error.
+- `remote-login setup/show/teardown --grant[=USER]` seals the tunnel token and service-token secret into `grant` (the renamed `shushu`); `show` renders `<sealed: grant/USER/NAME>` markers (refs #55). `--shushu[=USER]` stays as a hidden, deprecated alias that prints one stderr warning; passing both is a user error. **Migration note:** `--shushu` now targets the *grant* store (`~/.local/share/grant`), which is separate from the old shushu store — secrets sealed by `shushu` before this release are not visible to `show`/`teardown`; remove any leftovers with `shushu delete NAME` while shushu is still installed.
+- Seal-plan name guard: on `setup` with sealing enabled, a derived secret name that grant would refuse (`^[A-Z_][A-Z0-9_]{0,63}$` — e.g. hostnames longer than 38 chars) fails up front with a user error instead of reaching grant, where exit 64 is indistinguishable from 'absent'. Non-sealed runs are unaffected, and `show` / `teardown` skip the guard so an over-long hostname can still be inspected and its Cloudflare resources torn down.
+- Tunnel-token shape guard: `get_tunnel_token` raises (EXIT_API) unless the token base64-decodes (standard or URL-safe alphabet, surrounding whitespace stripped) to JSON with keys `a`/`s`/`t`, never echoing the value. The 51-byte token in #55 does not reproduce (the code path is unchanged since the rename and returns a valid 240-byte connector token live), so this turns any recurrence into a loud error.
 - `validate-delivery` devague skill (the behavioral evidence/delta leg between `assign-to-workforce` and `summarize-delivery`).
 
 ### Changed
@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `test-bash` CI is green again: `tests/shellcheck.sh` and `.markdownlint-cli2.yaml` skip the vendored `.claude/skills/ask-colleague/` tree (bytes untouched; findings reported upstream as agentculture/colleague#501).
+- `show --grant` treats only a missing grant binary as non-fatal (typed `GrantNotFoundError`, which also covers `sudo -n grant` failing because grant is outside sudo's `secure_path`); other grant errors — e.g. `user alice not found` — now surface instead of rendering as "grant not installed".
+- grant exit-64 remediation prints the exact command for the target, including `sudo -n … --user USER` for cross-user seals.
 
 ## [0.16.0] - 2026-10-10
 

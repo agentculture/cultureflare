@@ -241,3 +241,23 @@ def test_ensure_tunnel_config_overwrites_when_hostname_mismatch(http_stub):
         hostname="x.example.com", service="http://localhost:8080",
     )
     assert changed is True
+
+
+# --- review #61 finding 5: tolerate whitespace + URL-safe alphabet ------
+
+def test_get_tunnel_token_strips_surrounding_whitespace(http_stub):
+    _token_stub(http_stub, f"  {FAKE_TUNNEL_TOKEN}\n")
+    assert (
+        get_tunnel_token(account_id="acc-1", tunnel_id="tun-b")
+        == FAKE_TUNNEL_TOKEN
+    )
+
+
+def test_get_tunnel_token_accepts_urlsafe_alphabet(http_stub):
+    # bytes chosen so standard base64 contains '+' and '/'
+    payload = json.dumps({"a": "~~~", "s": "???>>>", "t": "t"}).encode()
+    std = base64.b64encode(payload).decode()
+    assert "+" in std or "/" in std
+    urlsafe = base64.urlsafe_b64encode(payload).decode()
+    _token_stub(http_stub, urlsafe)
+    assert get_tunnel_token(account_id="acc-1", tunnel_id="tun-b") == urlsafe

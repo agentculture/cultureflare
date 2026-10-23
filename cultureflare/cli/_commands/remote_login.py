@@ -67,11 +67,16 @@ def _add_grant_flags(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _seal_from_args(args: argparse.Namespace) -> SealPlan:
+def _seal_from_args(
+    args: argparse.Namespace, *, validate_names: bool = True,
+) -> SealPlan:
     """Resolve ``--grant`` / deprecated ``--shushu`` into a SealPlan.
 
     The deprecation note goes to stderr only, so ``--json`` stdout stays
-    parseable.
+    parseable. Only ``setup`` validates derived grant names: show and
+    teardown must still run (teardown cleans up Cloudflare) for a
+    hostname whose names grant would refuse — grant then reports them
+    absent (exit 64) and the seal steps record as skipped.
     """
     grant = getattr(args, "grant", None)
     shushu = getattr(args, "shushu", None)
@@ -84,7 +89,10 @@ def _seal_from_args(args: argparse.Namespace) -> SealPlan:
     if shushu is not None:
         print("warning: --shushu is deprecated; use --grant", file=sys.stderr)
         grant = shushu
-    return derive_seal_plan(hostname=args.hostname, grant_arg=grant)
+    return derive_seal_plan(
+        hostname=args.hostname, grant_arg=grant,
+        validate_names=validate_names,
+    )
 
 
 def _build_context(hostname: str) -> Context:
@@ -219,7 +227,7 @@ def cmd_setup(args: argparse.Namespace) -> None:
     args.service = _validate_service_url(args.service)
     check_token_alive()
     ctx = _ctx_with_overrides(args)
-    seal = _seal_from_args(args)
+    seal = _seal_from_args(args, validate_names=True)
     if not args.apply:
         _emit_setup_dryrun(args, ctx, seal)
     else:
@@ -230,7 +238,7 @@ def cmd_show(args: argparse.Namespace) -> None:
     json_mode = bool(args.json)
     check_token_alive()
     ctx = _ctx_with_overrides(args)
-    seal = _seal_from_args(args)
+    seal = _seal_from_args(args, validate_names=False)
     result = show(ctx=ctx, seal=seal)
     if json_mode:
         emit_json(render_show_json(result, hostname=args.hostname))
@@ -245,7 +253,7 @@ def cmd_teardown(args: argparse.Namespace) -> None:
     json_mode = bool(args.json)
     check_token_alive()
     ctx = _ctx_with_overrides(args)
-    seal = _seal_from_args(args)
+    seal = _seal_from_args(args, validate_names=False)
 
     if not args.apply:
         msg = (

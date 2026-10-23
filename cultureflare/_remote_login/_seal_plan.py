@@ -49,11 +49,17 @@ def derive_seal_plan(
     hostname: str,
     grant_arg: str | None = None,
     shushu_arg: str | None = None,
+    validate_names: bool = True,
 ) -> SealPlan:
     """Translate the CLI ``--grant[=USER]`` argument to a SealPlan.
 
     ``shushu_arg`` is a deprecated keyword alias for ``grant_arg``;
     passing both is a user error.
+
+    ``validate_names`` (default True) refuses derived names grant would
+    reject when sealing is enabled. ``setup`` keeps it on; ``show`` and
+    ``teardown`` turn it off so an over-long hostname can still be
+    inspected and torn down.
 
     ``grant_arg`` semantics:
       * ``None`` — flag not passed (sealed mode disabled).
@@ -85,7 +91,7 @@ def derive_seal_plan(
     slug = _slug(hostname)
     tunnel_target = GrantTarget(user=user, name=f"{slug}_TUNNEL_TOKEN")
     svc_target = GrantTarget(user=user, name=f"{slug}_SVC_SECRET")
-    if enabled:
+    if enabled and validate_names:
         for target in (tunnel_target, svc_target):
             if not _GRANT_NAME_RE.match(target.name):
                 raise CfafiError(

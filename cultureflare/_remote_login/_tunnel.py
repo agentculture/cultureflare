@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import binascii
 import json
 
 import cultureflare._api as _api
@@ -120,6 +119,7 @@ def get_tunnel_token(*, account_id: str, tunnel_id: str) -> str:
         f"/accounts/{account_id}/cfd_tunnel/{tunnel_id}/token",
     )
     token = response.get("result")
+    token = token.strip() if isinstance(token, str) else token
     if not _looks_like_connector_token(token):
         # Never echo the value (or any part of it): it is a credential.
         raise CfafiError(
@@ -138,13 +138,19 @@ def get_tunnel_token(*, account_id: str, tunnel_id: str) -> str:
 
 
 def _looks_like_connector_token(token: object) -> bool:
-    """True iff token is base64(JSON object) carrying keys a, s and t."""
+    """True iff token is base64(JSON object) carrying keys a, s and t.
+
+    Accepts the standard and the URL-safe base64 alphabets and missing
+    padding — the guard exists to catch a value that is not a connector
+    token at all, not to reject an encoding variant cloudflared accepts.
+    """
     if not isinstance(token, str) or not token:
         return False
+    padded = token + "=" * (-len(token) % 4)
+    standard = padded.replace("-", "+").replace("_", "/")
     try:
-        padded = token + "=" * (-len(token) % 4)
-        data = json.loads(base64.b64decode(padded, validate=True))
-    except (binascii.Error, ValueError):
+        data = json.loads(base64.b64decode(standard, validate=True))
+    except ValueError:  # binascii.Error and JSONDecodeError subclass it
         return False
     return isinstance(data, dict) and all(k in data for k in ("a", "s", "t"))
 

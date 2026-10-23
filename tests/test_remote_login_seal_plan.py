@@ -134,3 +134,21 @@ def test_rotate_howto_uses_grant_flag():
     p = derive_seal_plan(hostname="app.example.com", grant_arg="")
     assert "--grant " in p.metadata.rotate_howto
     assert "--shushu" not in p.metadata.rotate_howto
+
+
+# --- review #61 finding 2: name guard is setup-only ---------------------
+
+_LONG_HOST = "a-really-long-subdomain-name.example.culture.dev"  # > 38 chars
+
+
+def test_validate_names_false_skips_guard_when_sealing_enabled():
+    plan = derive_seal_plan(
+        hostname=_LONG_HOST, grant_arg="", validate_names=False,
+    )
+    assert plan.enabled is True
+    assert len(plan.tunnel_token_target.name) > 64
+
+
+def test_validate_names_defaults_to_true():
+    with pytest.raises(CfafiError):
+        derive_seal_plan(hostname=_LONG_HOST, grant_arg="")

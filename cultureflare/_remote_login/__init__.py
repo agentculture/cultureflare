@@ -106,11 +106,12 @@ def _probe_sealed_targets(seal: SealPlan) -> dict[str, dict | None]:
     ):
         try:
             meta = _grant_sink.probe(target)
-        except CfafiError as exc:
-            if "not found" in exc.message.lower():
-                sealed_status[key] = None
-                continue
-            raise
+        except _grant_sink.GrantNotFoundError:
+            # grant not installed (or not on sudo's PATH): show stays
+            # non-fatal. Any other grant error — e.g. a "user ... not
+            # found" from grant itself — is real and propagates.
+            sealed_status[key] = None
+            continue
         if meta is None:
             sealed_status[key] = {
                 "present": False,
@@ -402,8 +403,8 @@ def show(*, ctx: Context, seal: SealPlan | None = None) -> ShowResult:
 
     When ``seal`` is provided and enabled, probes grant for each sealed
     target and populates ``sealed_in_status``. If grant is not installed
-    ("not found" in the error message), show is non-fatal: each entry
-    becomes None rather than raising.
+    (``GrantNotFoundError`` — absent, or not on sudo's PATH), show is
+    non-fatal: each entry becomes None. Other grant errors propagate.
     """
     if seal is None:
         seal = derive_seal_plan(hostname=ctx.hostname, grant_arg=None)

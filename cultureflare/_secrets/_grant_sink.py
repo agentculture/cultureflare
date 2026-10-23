@@ -31,6 +31,14 @@ from cultureflare.cli._errors import (
 _GRANT_NOT_FOUND_MSG = "grant binary not found"
 
 
+class GrantNotFoundError(CfafiError):
+    """The grant binary could not be executed (absent, or not on sudo's PATH).
+
+    Typed so callers (``show``) can treat a missing tool as non-fatal
+    without string-matching messages that may embed grant's own stderr.
+    """
+
+
 def _sudo_prefix(target: GrantTarget) -> list[str]:
     """argv prefix that lifts the call to sudo when target.user is set.
 
@@ -76,6 +84,29 @@ def _argv_for_delete(target: GrantTarget) -> list[str]:
     ]
 
 
+def _check_sudo_grant_missing(
+    returncode: int, stderr: bytes, target: GrantTarget,
+) -> None:
+    """Raise GrantNotFoundError when ``sudo -n grant`` can't find grant.
+
+    sudo resets PATH to its ``secure_path``, so a grant installed under
+    ``~/.local/bin`` (``uv tool install``) is invisible to it even though
+    the invoking user can run it.
+    """
+    if returncode != 0 and target.user is not None:
+        stderr_text = stderr.decode(errors="replace")
+        if "command not found" in stderr_text:
+            raise GrantNotFoundError(
+                code=EXIT_USER_ERROR,
+                message=f"sudo could not find grant: {stderr_text.strip()}",
+                remediation=(
+                    "install grant somewhere on sudo's secure_path (e.g. "
+                    "/usr/local/bin) or add its directory to secure_path "
+                    "in /etc/sudoers"
+                ),
+            )
+
+
 def _check_sudo_no_creds(returncode: int, stderr: bytes, target: GrantTarget) -> None:
     """Raise a curated CfafiError when sudo fails because creds aren't cached.
 
@@ -102,6 +133,14 @@ def _check_sudo_no_creds(returncode: int, stderr: bytes, target: GrantTarget) ->
             )
 
 
+def _cmd_hint(verb: str, target: GrantTarget) -> str:
+    """Human-runnable grant command for ``target`` (mirrors the real argv)."""
+    return " ".join(
+        _sudo_prefix(target) + ["grant", verb] + _user_flag(target)
+        + [target.name]
+    )
+
+
 def _map_exit_code(rc: int, stderr: bytes, target: GrantTarget) -> CfafiError:
     msg = stderr.decode(errors="replace").strip() or f"grant exit {rc}"
     if rc == 64:
@@ -109,8 +148,8 @@ def _map_exit_code(rc: int, stderr: bytes, target: GrantTarget) -> CfafiError:
             code=EXIT_USER_ERROR,
             message=f"grant rejected the request: {msg}",
             remediation=(
-                f"`grant show {target.name}` to inspect; "
-                f"`grant delete {target.name}` then retry to rotate"
+                f"`{_cmd_hint('show', target)}` to inspect; "
+                f"`{_cmd_hint('delete', target)}` then retry to rotate"
             ),
         )
     if rc == 66:
@@ -149,7 +188,7 @@ def seal(
             argv, input=bytes(secret), capture_output=True, check=False,
         )
     except FileNotFoundError as exc:
-        raise CfafiError(
+        raise GrantNotFoundError(
             code=EXIT_USER_ERROR,
             message=_GRANT_NOT_FOUND_MSG,
             remediation=(
@@ -159,6 +198,7 @@ def seal(
         ) from exc
 
     if result.returncode != 0:
+        _check_sudo_grant_missing(result.returncode, result.stderr, target)
         _check_sudo_no_creds(result.returncode, result.stderr, target)
         raise _map_exit_code(result.returncode, result.stderr, target)
 
@@ -174,7 +214,7 @@ def probe(target: GrantTarget) -> dict | None:
     try:
         result = subprocess.run(argv, capture_output=True, check=False)
     except FileNotFoundError as exc:
-        raise CfafiError(
+        raise GrantNotFoundError(
             code=EXIT_USER_ERROR,
             message=_GRANT_NOT_FOUND_MSG,
             remediation="`uv tool install grant`",
@@ -183,6 +223,7 @@ def probe(target: GrantTarget) -> dict | None:
     if result.returncode == 64:
         return None
     if result.returncode != 0:
+        _check_sudo_grant_missing(result.returncode, result.stderr, target)
         _check_sudo_no_creds(result.returncode, result.stderr, target)
         raise _map_exit_code(result.returncode, result.stderr, target)
 
@@ -205,7 +246,7 @@ def delete(target: GrantTarget) -> bool:
     try:
         result = subprocess.run(argv, capture_output=True, check=False)
     except FileNotFoundError as exc:
-        raise CfafiError(
+        raise GrantNotFoundError(
             code=EXIT_USER_ERROR,
             message=_GRANT_NOT_FOUND_MSG,
             remediation="`uv tool install grant`",
@@ -215,5 +256,6 @@ def delete(target: GrantTarget) -> bool:
         return True
     if result.returncode == 64:
         return False
+    _check_sudo_grant_missing(result.returncode, result.stderr, target)
     _check_sudo_no_creds(result.returncode, result.stderr, target)
     raise _map_exit_code(result.returncode, result.stderr, target)

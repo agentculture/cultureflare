@@ -696,8 +696,10 @@ def test_show_without_seal_does_not_probe(http_stub, monkeypatch):
 def test_show_with_seal_handles_grant_missing(http_stub, monkeypatch):
     _program_show_happy_path(http_stub, hostname="app.example.com")
 
+    from cultureflare._secrets._grant_sink import GrantNotFoundError
+
     def fake_probe(target):
-        raise CfafiError(
+        raise GrantNotFoundError(
             code=EXIT_USER_ERROR,
             message="grant binary not found",
             remediation="uv tool install grant",
@@ -713,6 +715,27 @@ def test_show_with_seal_handles_grant_missing(http_stub, monkeypatch):
     # show is non-fatal: render None for each entry
     assert result.sealed_in_status["tunnel_token"] is None
     assert result.sealed_in_status["service_token_client_secret"] is None
+
+
+def test_show_with_seal_surfaces_other_not_found_errors(http_stub, monkeypatch):
+    """Review #61 finding 9: only a missing binary is non-fatal."""
+    _program_show_happy_path(http_stub, hostname="app.example.com")
+
+    def fake_probe(target):
+        raise CfafiError(
+            code=EXIT_API,
+            message="grant failed (exit 67): user alice not found",
+            remediation="`grant doctor` for diagnostics",
+        )
+
+    monkeypatch.setattr(
+        "cultureflare._secrets._grant_sink.probe", fake_probe
+    )
+
+    plan = derive_seal_plan(hostname="app.example.com", grant_arg="alice")
+    ctx = _ctx_for("app.example.com")
+    with pytest.raises(CfafiError, match="user alice not found"):
+        show(ctx=ctx, seal=plan)
 
 
 def test_teardown_with_seal_deletes_both_entries(http_stub, monkeypatch):
