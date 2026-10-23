@@ -255,8 +255,8 @@ def test_cmd_setup_dryrun_with_shushu_lists_seal_steps(capsys, monkeypatch):
     )
     cmd_setup(ns)
     out = capsys.readouterr().out
-    assert "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN" in out
-    assert "shushu/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET" in out
+    assert "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_TUNNEL_TOKEN" in out
+    assert "grant/alice/CULTUREFLARE_APP_EXAMPLE_COM_SVC_SECRET" in out
 
 
 # ---------------------------------------------------------------------------
