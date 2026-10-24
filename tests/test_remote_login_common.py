@@ -101,12 +101,12 @@ def test_setup_result_accepts_sealed_in():
         service_token_client_id="cid", service_token_client_secret=None,
         steps=[],
         sealed_in={
-            "tunnel_token": "shushu/alice/CULTUREFLARE_X_TUNNEL_TOKEN",
-            "service_token_client_secret": "shushu/alice/CULTUREFLARE_X_SVC_SECRET",
+            "tunnel_token": "grant/alice/CULTUREFLARE_X_TUNNEL_TOKEN",
+            "service_token_client_secret": "grant/alice/CULTUREFLARE_X_SVC_SECRET",
         },
     )
     assert r.tunnel_token is None
-    assert r.sealed_in["tunnel_token"].startswith("shushu/alice/")
+    assert r.sealed_in["tunnel_token"].startswith("grant/alice/")
 
 
 def test_show_result_has_sealed_in_status_default_empty():

@@ -10,11 +10,11 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class ShushuTarget:
-    """Where a sealed secret lives in shushu.
+class GrantTarget:
+    """Where a sealed secret lives in grant.
 
     ``user=None`` means the invoking OS user (no sudo). A non-None
-    value means cross-user: cultureflare will invoke ``sudo shushu``.
+    value means cross-user: cultureflare will invoke ``sudo grant``.
     """
 
     user: str | None
@@ -23,9 +23,9 @@ class ShushuTarget:
 
 @dataclass(frozen=True)
 class SealMetadata:
-    """Provenance + operator guidance stamped on every shushu entry.
+    """Provenance + operator guidance stamped on every grant entry.
 
-    These map 1:1 to ``shushu set --source / --purpose / --rotate-howto``.
+    These map 1:1 to ``grant set --source / --purpose / --rotate-howto``.
     Same metadata is used for both secrets in a remote-login seal — the
     rotate-howto command line tears down and re-creates both at once.
     """
@@ -33,3 +33,7 @@ class SealMetadata:
     source: str
     purpose: str
     rotate_howto: str
+
+
+# Back-compat alias: shushu was renamed to grant.
+ShushuTarget = GrantTarget

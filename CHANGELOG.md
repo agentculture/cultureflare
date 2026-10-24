@@ -4,6 +4,28 @@ All notable changes to this project will be documented here. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-10-24
+
+### Added
+
+- `remote-login setup/show/teardown --grant[=USER]` seals the tunnel token and service-token secret into `grant` (the renamed `shushu`); `show` renders `<sealed: grant/USER/NAME>` markers (refs #55). `--shushu[=USER]` stays as a hidden, deprecated alias that prints one stderr warning; passing both is a user error. **Migration note:** `--shushu` now targets the *grant* store (`~/.local/share/grant`), which is separate from the old shushu store — secrets sealed by `shushu` before this release are not visible to `show`/`teardown`; remove any leftovers with `shushu delete NAME` while shushu is still installed.
+- Seal-plan name guard: on `setup` with sealing enabled, a derived secret name that grant would refuse (`^[A-Z_][A-Z0-9_]{0,63}$` — e.g. hostnames longer than 38 chars) fails up front with a user error instead of reaching grant, where exit 64 is indistinguishable from 'absent'. Non-sealed runs are unaffected, and `show` / `teardown` skip the guard so an over-long hostname can still be inspected and its Cloudflare resources torn down.
+- Tunnel-token shape guard: `get_tunnel_token` raises (EXIT_API) unless the token base64-decodes (standard or URL-safe alphabet, surrounding whitespace stripped) to JSON with keys `a`/`s`/`t`, never echoing the value. The 51-byte token in #55 does not reproduce (the code path is unchanged since the rename and returns a valid 240-byte connector token live), so this turns any recurrence into a loud error.
+- `validate-delivery` devague skill (the behavioral evidence/delta leg between `assign-to-workforce` and `summarize-delivery`).
+
+### Changed
+
+- **Output change:** remote-login seal step names are now `grant-tunnel-token` / `grant-svc-secret` (were `shushu-tunnel-token` / `shushu-svc-secret`), and sealed markers read `grant/USER/NAME`.
+- Secret sink moved to `cultureflare/_secrets/_grant_sink.py` and execs `grant`; `_shushu_sink` is now the same module object (sys.modules alias), `ShushuTarget` is `GrantTarget`, and `derive_seal_plan(shushu_arg=...)` still works — the `cfafi` back-compat surface is unchanged.
+- Re-vendored the devague workflow skills (scope, think, challenge, spec-to-plan, assign-to-workforce, deviate, summarize-delivery) from guildmaster `f0ea1b3` = devague `0.24.2` (`78d9bfb`): SKILL.md files verbatim; the three CLI-driving scripts keep the local SonarCloud `shelldre` hardening + SC2016 disables. guildmaster's extra method-only resolver scripts are not vendored. CLAUDE.md documents all eight skills.
+- `.devague/` working state and `docs/plans/*-split.md` are gitignored (and `.devague/**` is skipped by markdownlint).
+
+### Fixed
+
+- `test-bash` CI is green again: `tests/shellcheck.sh` and `.markdownlint-cli2.yaml` skip the vendored `.claude/skills/ask-colleague/` tree (bytes untouched; findings reported upstream as agentculture/colleague#501).
+- `show --grant` treats only a missing grant binary as non-fatal (typed `GrantNotFoundError`, which also covers `sudo -n grant` failing because grant is outside sudo's `secure_path`); other grant errors — e.g. `user alice not found` — now surface instead of rendering as "grant not installed".
+- grant exit-64 remediation prints the exact command for the target, including `sudo -n … --user USER` for cross-user seals.
+
 ## [0.16.0] - 2026-10-10
 
 ### Added
