@@ -110,9 +110,10 @@ def test_seal_secret_passed_via_stdin_not_argv(monkeypatch):
 
 def test_seal_str_secret_raises_typeerror(monkeypatch):
     monkeypatch.setattr(subprocess, "run", _FakeRun())
+    target = GrantTarget(user=None, name="MY_SECRET")
     with pytest.raises(TypeError, match="bytes"):
         seal(
-            GrantTarget(user=None, name="MY_SECRET"),
+            target,
             "this-is-a-str",  # type: ignore[arg-type]
             _META,
         )
@@ -122,8 +123,9 @@ def test_seal_exit_64_maps_to_user_error(monkeypatch):
     fake = _FakeRun(returncode=64, stderr=b"name already exists")
     monkeypatch.setattr(subprocess, "run", fake)
 
+    target = GrantTarget(user=None, name="N")
     with pytest.raises(CfafiError) as exc:
-        seal(GrantTarget(user=None, name="N"), b"x", _META)
+        seal(target, b"x", _META)
     assert exc.value.code == EXIT_USER_ERROR
     assert "already exists" in (exc.value.message + exc.value.remediation).lower() \
         or "grant" in exc.value.message.lower()
@@ -133,8 +135,9 @@ def test_seal_exit_65_maps_to_api(monkeypatch):
     fake = _FakeRun(returncode=65, stderr=b"store corrupt")
     monkeypatch.setattr(subprocess, "run", fake)
 
+    target = GrantTarget(user=None, name="N")
     with pytest.raises(CfafiError) as exc:
-        seal(GrantTarget(user=None, name="N"), b"x", _META)
+        seal(target, b"x", _META)
     assert exc.value.code == EXIT_API
 
 
@@ -142,8 +145,9 @@ def test_seal_exit_66_root_required_maps_to_user_error(monkeypatch):
     fake = _FakeRun(returncode=66, stderr=b"requires root")
     monkeypatch.setattr(subprocess, "run", fake)
 
+    target = GrantTarget(user="alice", name="N")
     with pytest.raises(CfafiError) as exc:
-        seal(GrantTarget(user="alice", name="N"), b"x", _META)
+        seal(target, b"x", _META)
     assert exc.value.code == EXIT_USER_ERROR
     assert "sudo" in (exc.value.remediation + exc.value.message).lower()
 
@@ -153,8 +157,9 @@ def test_seal_filenotfound_returns_install_remediation(monkeypatch):
         raise FileNotFoundError(2, "No such file or directory: 'grant'")
     monkeypatch.setattr(subprocess, "run", boom)
 
+    target = GrantTarget(user=None, name="N")
     with pytest.raises(CfafiError) as exc:
-        seal(GrantTarget(user=None, name="N"), b"x", _META)
+        seal(target, b"x", _META)
     assert exc.value.code == EXIT_USER_ERROR
     assert "uv tool install grant" in exc.value.remediation
 
@@ -232,8 +237,9 @@ def test_probe_other_error_raises(monkeypatch):
             )
 
     monkeypatch.setattr(subprocess, "run", _Run())
+    target = GrantTarget(user=None, name="X")
     with pytest.raises(CfafiError) as exc:
-        probe(GrantTarget(user=None, name="X"))
+        probe(target)
     assert exc.value.code == EXIT_API
 
 
@@ -241,8 +247,9 @@ def test_probe_filenotfound_raises(monkeypatch):
     def boom(*a, **kw):
         raise FileNotFoundError(2, "No such file: grant")
     monkeypatch.setattr(subprocess, "run", boom)
+    target = GrantTarget(user=None, name="X")
     with pytest.raises(CfafiError) as exc:
-        probe(GrantTarget(user=None, name="X"))
+        probe(target)
     assert exc.value.code == EXIT_USER_ERROR
 
 
@@ -300,8 +307,9 @@ def test_delete_other_error_raises(monkeypatch):
                 args=argv, returncode=70, stdout=b"", stderr=b"grant bug",
             )
     monkeypatch.setattr(subprocess, "run", _Run())
+    target = GrantTarget(user=None, name="X")
     with pytest.raises(CfafiError) as exc:
-        delete(GrantTarget(user=None, name="X"))
+        delete(target)
     assert exc.value.code == EXIT_API
 
 
@@ -319,8 +327,9 @@ def test_seal_sudo_no_password_cached_remediation(monkeypatch):
     )
     monkeypatch.setattr(subprocess, "run", fake)
 
+    target = GrantTarget(user="alice", name="N")
     with pytest.raises(CfafiError) as exc:
-        seal(GrantTarget(user="alice", name="N"), b"x", _META)
+        seal(target, b"x", _META)
     assert exc.value.code == EXIT_USER_ERROR
     assert (
         "sudo -v" in exc.value.remediation
@@ -333,8 +342,9 @@ def test_not_found_message_names_grant(monkeypatch):
         raise FileNotFoundError(2, "nope")
 
     monkeypatch.setattr(subprocess, "run", _raise)
+    target = GrantTarget(user=None, name="X")
     with pytest.raises(CfafiError) as exc:
-        seal(GrantTarget(user=None, name="X"), b"v", _META)
+        seal(target, b"v", _META)
     assert "grant binary not found" in exc.value.message
     assert "uv tool install grant" in exc.value.remediation
     assert "shushu" not in exc.value.message + exc.value.remediation
@@ -384,8 +394,9 @@ def test_seal_with_fake_grant_on_path(tmp_path, monkeypatch):
 
 def test_exit_64_remediation_uses_sudo_and_user_for_cross_user(monkeypatch):
     monkeypatch.setattr(subprocess, "run", _FakeRun(returncode=64, stderr=b"exists"))
+    target = GrantTarget(user="alice", name="MY_SECRET")
     with pytest.raises(CfafiError) as ei:
-        seal(GrantTarget(user="alice", name="MY_SECRET"), b"x", _META)
+        seal(target, b"x", _META)
     rem = ei.value.remediation
     assert "sudo -n grant show --user alice MY_SECRET" in rem
     assert "sudo -n grant delete --user alice MY_SECRET" in rem
@@ -393,8 +404,9 @@ def test_exit_64_remediation_uses_sudo_and_user_for_cross_user(monkeypatch):
 
 def test_exit_64_remediation_plain_for_self(monkeypatch):
     monkeypatch.setattr(subprocess, "run", _FakeRun(returncode=64, stderr=b"exists"))
+    target = GrantTarget(user=None, name="MY_SECRET")
     with pytest.raises(CfafiError) as ei:
-        seal(GrantTarget(user=None, name="MY_SECRET"), b"x", _META)
+        seal(target, b"x", _META)
     assert "`grant show MY_SECRET`" in ei.value.remediation
     assert "sudo" not in ei.value.remediation
 
@@ -406,8 +418,9 @@ def test_missing_binary_raises_typed_not_found(monkeypatch):
         raise FileNotFoundError(argv[0])
 
     monkeypatch.setattr(subprocess, "run", boom)
+    target = GrantTarget(user=None, name="MY_SECRET")
     with pytest.raises(GrantNotFoundError):
-        seal(GrantTarget(user=None, name="MY_SECRET"), b"x", _META)
+        seal(target, b"x", _META)
 
 
 def test_sudo_command_not_found_is_typed_not_found(monkeypatch):
@@ -416,6 +429,7 @@ def test_sudo_command_not_found_is_typed_not_found(monkeypatch):
     monkeypatch.setattr(subprocess, "run", _FakeRun(
         returncode=1, stderr=b"sudo: grant: command not found\n",
     ))
+    target = GrantTarget(user="alice", name="MY_SECRET")
     with pytest.raises(GrantNotFoundError) as ei:
-        probe(GrantTarget(user="alice", name="MY_SECRET"))
+        probe(target)
     assert "secure_path" in ei.value.remediation
