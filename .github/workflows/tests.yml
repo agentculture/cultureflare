@@ -11,6 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # Promote SONAR_TOKEN to job env so the SonarCloud step can gate on
+    # `env.SONAR_TOKEN != ''` — `secrets.*` isn't allowed in `if:`.
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -21,6 +25,20 @@ jobs:
       - run: uv sync
 
       - run: uv run pytest -n auto --cov=cultureflare --cov-report=xml:coverage.xml --cov-report=term -v
+
+      # No unresolved SonarCloud issue on the PR. A code smell leaves the quality gate
+      # green, so this fails the job while the PR has any OPEN or CONFIRMED issue;
+      # ACCEPTED and FALSE_POSITIVE ones pass. SonarCloud runs automatic analysis here
+      # (no scanner step), so the script waits for the analysis of the head commit.
+      # The registered key predates the cultureflare rename.
+      - name: SonarCloud unresolved issues
+        if: env.SONAR_TOKEN != '' && github.event_name == 'pull_request'
+        env:
+          SONAR_HOST_URL: https://sonarcloud.io
+          SONAR_PROJECT_KEY: agentculture_cloudflare
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/sonar-pr-issues.py
 
   version-check:
     # Only run on PR events. On push to main after a merged PR, the
