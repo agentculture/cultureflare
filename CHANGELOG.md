@@ -4,6 +4,13 @@ All notable changes to this project will be documented here. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.2] - 2026-10-30
+
+
+### Fixed
+
+- `remote-login teardown` now deletes the service-token policy before the service token. Cloudflare refuses to delete a token a policy still references (CF 12139 `service_token_in_use`), so teardown of any hostname with a service token aborted at its first step. Hit tearing down `nodes.culture.dev`.
+
 ## [0.17.1] - 2026-10-24
 
 ### Added

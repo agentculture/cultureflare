@@ -447,16 +447,27 @@ def _program_teardown_happy_path(
 
 
 def test_teardown_reverses_setup_skipping_zt_org(http_stub):
-    # Order of deletes: service-token, policy, app, dns, tunnel.
+    # Order of deletes: service-token policy, service-token, policy, app, dns, tunnel.
     _program_teardown_happy_path(http_stub, hostname="irc.culture.dev")
     result = teardown(ctx=_ctx(), keep_tunnel=False)
     assert isinstance(result, TeardownResult)
     assert [s.name for s in result.steps] == [
-        "service-token", "service-token-policy",
+        "service-token-policy", "service-token",
         "allow-policy", "access-app", "dns", "tunnel",
     ]
     delete_paths = [c[1] for c in http_stub.calls if c[0] == "DELETE"]
     assert all("organizations" not in p for p in delete_paths)
+
+
+def test_teardown_deletes_service_token_policy_before_token(http_stub):
+    # CF refuses to delete a service token a policy still references
+    # (12139 service_token_in_use), so the policy DELETE must come first.
+    _program_teardown_happy_path(http_stub, hostname="irc.culture.dev")
+    teardown(ctx=_ctx(), keep_tunnel=False)
+    delete_paths = [c[1] for c in http_stub.calls if c[0] == "DELETE"]
+    policy_idx = delete_paths.index("/accounts/acc-1/access/apps/app-1/policies/pol-svc")
+    token_idx = delete_paths.index("/accounts/acc-1/access/service_tokens/st-1")
+    assert policy_idx < token_idx
 
 
 def test_teardown_keep_tunnel_skips_tunnel_delete(http_stub):
