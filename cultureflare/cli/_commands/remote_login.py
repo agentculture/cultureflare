@@ -259,7 +259,7 @@ def cmd_teardown(args: argparse.Namespace) -> None:
         msg = (
             f"**Dry-run — no changes applied**\n\n"
             f"`teardown --hostname {args.hostname}` would delete (in order): "
-            f"service-token-policy, service-token, allow-policy, access-app, dns, "
+            f"service-token-policy, allow-policy, access-app, service-token, dns, "
             f"{'tunnel' if not args.keep_tunnel else '(tunnel kept)'}.\n"
         )
         if json_mode:
