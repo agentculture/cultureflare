@@ -4,6 +4,16 @@ All notable changes to this project will be documented here. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.2] - 2026-10-30
+
+### Added
+
+- CI gate: the `test` job fails a PR that has any OPEN or CONFIRMED SonarCloud issue. ACCEPTED and FALSE_POSITIVE issues pass. `scripts/sonar-pr-issues.py` and its tests are cited from `agentculture/culture-rules@48942c3`. The step sets `SONAR_PROJECT_KEY=agentculture_cloudflare` because this repo uses automatic analysis and has no `sonar-project.properties`.
+
+### Fixed
+
+- `remote-login teardown` now deletes the service token last on the Access side, after its policy, the allow policy and the app. Cloudflare refuses to delete a token any policy still references (CF 12139 `service_token_in_use`), so teardown of any hostname with a service token aborted at its first step. Hit tearing down `nodes.culture.dev`. Deleting the app first also removes any other app-scoped policy that references the token, and the token is still cleaned up when the app is already gone. If the token is still used elsewhere (shared via `--service-token-name`, or referenced by an account-level policy), teardown records it as `kept` and still removes DNS and the tunnel instead of aborting partway.
+
 ## [0.17.1] - 2026-10-24
 
 ### Added

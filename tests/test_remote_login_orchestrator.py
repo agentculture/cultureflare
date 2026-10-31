@@ -447,16 +447,74 @@ def _program_teardown_happy_path(
 
 
 def test_teardown_reverses_setup_skipping_zt_org(http_stub):
-    # Order of deletes: service-token, policy, app, dns, tunnel.
+    # Order of deletes: service-token policy, policy, app, service-token, dns, tunnel.
     _program_teardown_happy_path(http_stub, hostname="irc.culture.dev")
     result = teardown(ctx=_ctx(), keep_tunnel=False)
     assert isinstance(result, TeardownResult)
     assert [s.name for s in result.steps] == [
-        "service-token", "service-token-policy",
-        "allow-policy", "access-app", "dns", "tunnel",
+        "service-token-policy", "allow-policy", "access-app",
+        "service-token", "dns", "tunnel",
     ]
     delete_paths = [c[1] for c in http_stub.calls if c[0] == "DELETE"]
     assert all("organizations" not in p for p in delete_paths)
+
+
+def test_teardown_deletes_service_token_after_its_policy_and_app(http_stub):
+    # CF refuses to delete a service token a policy still references
+    # (12139 service_token_in_use). Deleting the app removes every policy
+    # scoped to it, so the token DELETE must come after the app DELETE.
+    _program_teardown_happy_path(http_stub, hostname="irc.culture.dev")
+    teardown(ctx=_ctx(), keep_tunnel=False)
+    delete_paths = [c[1] for c in http_stub.calls if c[0] == "DELETE"]
+    policy_idx = delete_paths.index("/accounts/acc-1/access/apps/app-1/policies/pol-svc")
+    app_idx = delete_paths.index("/accounts/acc-1/access/apps/app-1")
+    token_idx = delete_paths.index("/accounts/acc-1/access/service_tokens/st-1")
+    assert policy_idx < app_idx < token_idx
+
+
+def test_teardown_deletes_service_token_when_app_is_gone(http_stub):
+    # No app left (e.g. a half-finished earlier teardown): the token is
+    # still cleaned up, then DNS + tunnel proceed.
+    _program_teardown_happy_path(http_stub, hostname="irc.culture.dev")
+    http_stub.set("GET", "/accounts/acc-1/access/apps", _empty_list())
+    result = teardown(ctx=_ctx(), keep_tunnel=False)
+    assert [s.name for s in result.steps] == ["service-token", "dns", "tunnel"]
+
+
+def test_teardown_keeps_service_token_still_in_use_and_finishes(http_stub):
+    # A token shared with another hostname (--service-token-name) is still
+    # referenced after this app is gone: CF 12139. Keep it, don't abort —
+    # DNS + tunnel must still be cleaned up.
+    _program_teardown_happy_path(http_stub, hostname="irc.culture.dev")
+    http_stub.set(
+        "DELETE", "/accounts/acc-1/access/service_tokens/st-1",
+        CfafiError(
+            code=EXIT_API,
+            message="CloudFlare API 12139: access.api.error.service_token_in_use",
+            remediation="...",
+            cf_error_code=12139,
+        ),
+    )
+    result = teardown(ctx=_ctx(), keep_tunnel=False)
+    assert [(s.name, s.action) for s in result.steps] == [
+        ("service-token-policy", "deleted"), ("allow-policy", "deleted"),
+        ("access-app", "deleted"), ("service-token", "kept"),
+        ("dns", "deleted"), ("tunnel", "deleted"),
+    ]
+
+
+def test_teardown_propagates_other_service_token_errors(http_stub):
+    _program_teardown_happy_path(http_stub, hostname="irc.culture.dev")
+    http_stub.set(
+        "DELETE", "/accounts/acc-1/access/service_tokens/st-1",
+        CfafiError(
+            code=EXIT_API, message="CloudFlare API 10000: auth", remediation="...",
+            cf_error_code=10000,
+        ),
+    )
+    ctx = _ctx()
+    with pytest.raises(CfafiError):
+        teardown(ctx=ctx, keep_tunnel=False)
 
 
 def test_teardown_keep_tunnel_skips_tunnel_delete(http_stub):
