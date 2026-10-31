@@ -492,10 +492,32 @@ def _teardown_access(*, ctx: Context, steps: list[StepRecord]) -> None:
     if app is not None:
         _teardown_app(ctx=ctx, app=app, svc=svc, steps=steps)
     if svc is not None:
+        _teardown_service_token(ctx=ctx, svc=svc, steps=steps)
+
+
+def _teardown_service_token(
+    *, ctx: Context, svc: dict, steps: list[StepRecord],
+) -> None:
+    """Delete the service token, or keep it if a policy elsewhere still uses it.
+
+    A token shared via ``--service-token-name`` (or referenced by an
+    account-level policy) is still in use after this hostname's app is
+    gone; CF answers 12139. Keep it and let DNS + tunnel cleanup proceed
+    rather than aborting a half-finished teardown.
+    """
+    try:
         delete_service_token(account_id=ctx.account_id, token_id=svc["id"])
+    except CfafiError as exc:
+        if exc.cf_error_code != 12139:
+            raise
         steps.append(StepRecord(
-            name="service-token", action="deleted", detail=f"id={svc['id']}",
+            name="service-token", action="kept",
+            detail=f"id={svc['id']}, still in use by another policy (CF 12139)",
         ))
+        return
+    steps.append(StepRecord(
+        name="service-token", action="deleted", detail=f"id={svc['id']}",
+    ))
 
 
 def _teardown_app(

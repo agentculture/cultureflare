@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `remote-login teardown` now deletes the service token last on the Access side, after its policy, the allow policy and the app. Cloudflare refuses to delete a token any policy still references (CF 12139 `service_token_in_use`), so teardown of any hostname with a service token aborted at its first step. Hit tearing down `nodes.culture.dev`. Deleting the app first also removes any other app-scoped policy that references the token, and the token is still cleaned up when the app is already gone.
+- `remote-login teardown` now deletes the service token last on the Access side, after its policy, the allow policy and the app. Cloudflare refuses to delete a token any policy still references (CF 12139 `service_token_in_use`), so teardown of any hostname with a service token aborted at its first step. Hit tearing down `nodes.culture.dev`. Deleting the app first also removes any other app-scoped policy that references the token, and the token is still cleaned up when the app is already gone. If the token is still used elsewhere (shared via `--service-token-name`, or referenced by an account-level policy), teardown records it as `kept` and still removes DNS and the tunnel instead of aborting partway.
 
 ## [0.17.1] - 2026-10-24
 
