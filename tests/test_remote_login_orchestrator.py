@@ -512,8 +512,9 @@ def test_teardown_propagates_other_service_token_errors(http_stub):
             cf_error_code=10000,
         ),
     )
+    ctx = _ctx()
     with pytest.raises(CfafiError):
-        teardown(ctx=_ctx(), keep_tunnel=False)
+        teardown(ctx=ctx, keep_tunnel=False)
 
 
 def test_teardown_keep_tunnel_skips_tunnel_delete(http_stub):
